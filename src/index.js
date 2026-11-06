@@ -112,7 +112,7 @@ function scheduleMaintenance() {
       const day = now.toISOString().slice(0, 10);
       if (now.getUTCHours() === config.backupHourUtc && lastBackupDay !== day) {
         lastBackupDay = day;
-        await runBackup(db, config);
+        await runBackup(db, { backupDir: config.backupDir, keep: config.backupKeep, r2: config.r2 });
       }
     } catch (err) {
       reportError(err, { where: 'maintenance' });

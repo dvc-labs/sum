@@ -11,6 +11,7 @@ import { onInteraction } from '../src/interactions/router.js';
 function harness() {
   const store = new Store(openDatabase(':memory:'));
   const sent = [];
+  const removedRoles = [];
   const allPerms = { has: () => true };
   const countChannel = {
     id: 'count',
@@ -24,7 +25,16 @@ function harness() {
     id: 'g',
     name: 'Test',
     ownerId: 'owner',
-    members: { me: null, fetch: async () => ({ roles: { add: async () => {} } }) },
+    members: {
+      me: null,
+      fetch: async (userId) => ({
+        roles: {
+          cache: new Map([['ruined', {}]]),
+          add: async () => {},
+          remove: async (roleId) => removedRoles.push([userId, roleId]),
+        },
+      }),
+    },
     channels: { cache: new Map([['count', countChannel]]) },
     roles: { cache: new Map() },
     fetchOwner: async () => ({ send: async () => {} }),
@@ -75,6 +85,8 @@ function harness() {
       isRepliable: () => true,
       update: async (p) => (payload = p),
       reply: async (p) => (payload = p),
+      deferUpdate: async () => {},
+      editReply: async (p) => (payload = p),
     };
     await onInteraction(app, interaction);
     return payload;
@@ -98,7 +110,7 @@ function harness() {
     return payload;
   };
 
-  return { app, store, sent, say, interact, command, g: () => store.getGuild('g') };
+  return { app, store, sent, removedRoles, say, interact, command, g: () => store.getGuild('g') };
 }
 
 test('a counting session end to end', async () => {
@@ -211,7 +223,11 @@ test('danger zone: reset and wipe', async () => {
   await h.interact('sum:danger:reset:yes');
   assert.equal(h.g().current_count, 0);
   assert.equal(h.g().high_score, 2);
-  await h.interact('sum:danger:wipe:yes');
+  h.store.addTempRole('g', 'a', 'ruined', Date.now() + 60_000);
+  const wiped = await h.interact('sum:danger:wipe:yes');
+  assert.ok(JSON.stringify(wiped.components).includes('set up Sum'));
+  assert.deepEqual(h.removedRoles, [['a', 'ruined']]); // active ruined role taken back first
+  assert.equal(h.store.tempRolesForGuild('g').length, 0);
   assert.equal(h.g().high_score, 0);
   assert.equal(h.g().count_channel_id, null);
 });

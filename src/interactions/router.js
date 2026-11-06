@@ -15,6 +15,7 @@ import {
 import { configIssues, isSumAdmin } from '../services/permissions.js';
 import { logEvent } from '../services/notify.js';
 import { reportError } from '../services/errors.js';
+import { releaseAllRuinedRoles } from '../services/roles.js';
 
 const SETTING_LABELS = {
   rule_wrong_number: 'Wrong number ends the run',
@@ -241,9 +242,12 @@ async function onDanger(app, interaction, ctx, action, confirm, show) {
 
   if (action === 'wipe') {
     const old = ctx.guild;
+    await interaction.deferUpdate(); // role cleanup may take longer than Discord's 3 s window
     await logEvent(app.client, old, '🗑️ Server data wiped', [`All Sum data and settings were wiped by ${by}.`], ACCENT.danger);
+    // Take back active ruined roles first: the wipe deletes their expiry records.
+    await releaseAllRuinedRoles(app.client, app.store, old.guild_id);
     await app.queue.run(old.guild_id, () => app.store.wipeGuild(old.guild_id));
     refresh(ctx, interaction);
-    return show(settingsView(ctx, 'channels'));
+    return interaction.editReply(v2update(settingsView(ctx, 'channels')));
   }
 }

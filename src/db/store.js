@@ -102,6 +102,7 @@ export class Store {
          ON CONFLICT(guild_id, user_id, role_id) DO UPDATE SET expires_at = excluded.expires_at`,
       ),
       dueTempRoles: db.prepare('SELECT * FROM temp_roles WHERE expires_at <= ? LIMIT 100'),
+      guildTempRoles: db.prepare('SELECT * FROM temp_roles WHERE guild_id = ?'),
       removeTempRole: db.prepare(
         'DELETE FROM temp_roles WHERE guild_id = ? AND user_id = ? AND role_id = ?',
       ),
@@ -210,6 +211,10 @@ export class Store {
 
   dueTempRoles(now = Date.now()) {
     return this.stmt.dueTempRoles.all(now);
+  }
+
+  tempRolesForGuild(guildId) {
+    return this.stmt.guildTempRoles.all(guildId);
   }
 
   removeTempRole(guildId, userId, roleId) {

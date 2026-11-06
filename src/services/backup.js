@@ -7,6 +7,7 @@ import { logger } from './logger.js';
  * Keeps the newest `keep` local copies and optionally uploads to Cloudflare R2.
  */
 export async function runBackup(db, { backupDir, keep, r2 }) {
+  if (!Number.isInteger(keep) || keep < 1) throw new Error(`runBackup: keep must be a positive integer, got ${keep}`);
   mkdirSync(backupDir, { recursive: true, mode: 0o700 });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const file = path.join(backupDir, `sum-${stamp}.db`);

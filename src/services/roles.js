@@ -3,6 +3,15 @@ import { ACCENT } from '../ui/kit.js';
 import { logEvent } from './notify.js';
 import { logger } from './logger.js';
 
+/** Discord errors after which retrying a role removal can never succeed. */
+const GONE = new Set([
+  10004, // Unknown Guild
+  10007, // Unknown Member
+  10011, // Unknown Role
+  10013, // Unknown User
+  50013, // Missing Permissions (role hierarchy / Manage Roles revoked)
+]);
+
 /** Gives the ruined role to a player for the configured duration. */
 export async function assignRuinedRole(client, store, guildRow, userId) {
   if (!guildRow.ruined_role_enabled || !guildRow.ruined_role_id) return;
@@ -31,22 +40,37 @@ export async function assignRuinedRole(client, store, guildRow, userId) {
   }
 }
 
+/**
+ * Removes one tracked ruined role. Returns true when the record can be dropped:
+ * the role is gone from the member, or retrying can never work. Transient
+ * failures (rate limits, network, outages) return false so the next sweep retries.
+ */
+export async function removeTrackedRole(client, entry) {
+  const guild = client.guilds.cache.get(entry.guild_id);
+  if (!guild) return false; // gateway outage or not cached yet — retry; data purge cleans up removed servers
+  try {
+    const member = await guild.members.fetch(entry.user_id);
+    if (member.roles.cache.has(entry.role_id)) await member.roles.remove(entry.role_id, 'Sum: ruined role expired');
+    return true;
+  } catch (err) {
+    if (GONE.has(err?.code)) return true;
+    logger.warn({ guildId: entry.guild_id, err: err.message }, 'ruined role removal failed — will retry');
+    return false;
+  }
+}
+
 /** Removes expired ruined roles. Runs every minute; survives restarts via the DB. */
 export async function sweepTempRoles(client, store) {
   for (const entry of store.dueTempRoles()) {
-    const guild = client.guilds.cache.get(entry.guild_id);
-    try {
-      if (guild) {
-        const member = await guild.members.fetch(entry.user_id).catch(() => null);
-        if (member?.roles.cache.has(entry.role_id)) {
-          await member.roles.remove(entry.role_id, 'Sum: ruined role expired');
-        }
-      }
-    } catch (err) {
-      logger.warn({ guildId: entry.guild_id, err: err.message }, 'ruined role removal failed');
-    } finally {
-      // Always drop the entry: a missing guild/member/role can't be fixed by retrying.
+    if (await removeTrackedRole(client, entry)) {
       store.removeTempRole(entry.guild_id, entry.user_id, entry.role_id);
     }
+  }
+}
+
+/** Takes back every active ruined role in a server (used before wiping its data). */
+export async function releaseAllRuinedRoles(client, store, guildId) {
+  for (const entry of store.tempRolesForGuild(guildId)) {
+    await removeTrackedRole(client, entry);
   }
 }
