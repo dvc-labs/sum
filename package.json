@@ -1,0 +1,23 @@
+{
+  "name": "sum",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sum — a classic counting game for Discord servers.",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "smoke": "node scripts/smoke-db.js",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1164.0",
+    "better-sqlite3": "^13.0.3",
+    "discord.js": "^14.28.1",
+    "pino": "^10.4.0"
+  }
+}
