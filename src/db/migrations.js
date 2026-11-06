@@ -79,9 +79,18 @@ export const MIGRATIONS = [
   ) STRICT;
 
   CREATE INDEX idx_temp_roles_expiry ON temp_roles (expires_at);
+
+  -- Single-leader lock: during a Coolify rolling update two containers overlap;
+  -- only the leader processes events.
+  CREATE TABLE instance_lock (
+    id           INTEGER PRIMARY KEY CHECK (id = 1),
+    owner        TEXT    NOT NULL,
+    started_at   INTEGER NOT NULL,
+    heartbeat_at INTEGER NOT NULL
+  ) STRICT;
   `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
-export const EXPECTED_TABLES = ['guilds', 'user_stats', 'disqualified', 'temp_roles'];
+export const EXPECTED_TABLES = ['guilds', 'user_stats', 'disqualified', 'temp_roles', 'instance_lock'];

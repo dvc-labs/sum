@@ -25,3 +25,4 @@ The first public release. 🎉
 - `/about` with the version, support server and links.
 - Danger zone: reset count, wipe server data.
 - Server data is kept for 30 days after Sum is removed, then purged.
+- Updates without downtime: during a deploy, only one running copy of Sum handles the game.

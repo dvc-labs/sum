@@ -124,6 +124,14 @@ const g = db.prepare('SELECT COUNT(*) AS total, SUM(left_at IS NULL) AS active, 
 ok(`servers: ${g.total} total · ${g.active ?? 0} active · ${g.configured ?? 0} with a counting channel`);
 ok(`players tracked: ${db.prepare('SELECT COUNT(*) AS n FROM user_stats').get().n}`);
 ok(`pending ruined-role removals: ${db.prepare('SELECT COUNT(*) AS n FROM temp_roles').get().n}`);
+const lock = db.prepare('SELECT * FROM instance_lock WHERE id = 1').get();
+if (!lock) warn('no leader lock — the bot is not running (or shut down cleanly)');
+else {
+  const age = (Date.now() - lock.heartbeat_at) / 1000;
+  age > 15
+    ? warn(`leader ${lock.owner.slice(0, 8)} heartbeat is ${age.toFixed(0)} s old — is the bot running?`)
+    : ok(`leader ${lock.owner.slice(0, 8)} alive (heartbeat ${age.toFixed(1)} s ago)`);
+}
 db.close();
 
 section('6. Backups');

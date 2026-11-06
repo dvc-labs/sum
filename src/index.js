@@ -11,6 +11,7 @@ import { runBackup } from './services/backup.js';
 import { startHealthServer } from './services/health.js';
 import { sweepTempRoles } from './services/roles.js';
 import { initErrorReporting, reportError } from './services/errors.js';
+import { Leader } from './services/leader.js';
 import { logger } from './services/logger.js';
 
 process.umask(0o077); // data files are readable by the bot user only
@@ -21,6 +22,8 @@ initErrorReporting(config.errorWebhookUrl);
 const db = openDatabase(config.dbPath);
 const store = new Store(db);
 const queue = new KeyedQueue();
+const leader = new Leader(db);
+leader.start(); // newest container wins; an older one still running goes on standby
 
 const client = new Client({
   intents: [
@@ -39,11 +42,12 @@ const client = new Client({
   allowedMentions: { parse: [] },
 });
 
-const app = { client, store, queue, config };
+const app = { client, store, queue, config, leader };
 const timers = [];
 
-/** Wraps event handlers so one bad event never kills the process. */
+/** Wraps event handlers: standby instances ignore events, and one bad event never kills the process. */
 const guard = (where, fn) => async (...args) => {
+  if (!leader.isLeader()) return;
   try {
     await fn(app, ...args);
   } catch (err) {
@@ -88,11 +92,16 @@ async function reconcileGuilds() {
 
 function scheduleMaintenance() {
   // Expired ruined roles — every minute.
-  timers.push(setInterval(() => sweepTempRoles(client, store).catch((e) => reportError(e, { where: 'sweep' })), 60_000));
+  timers.push(
+    setInterval(() => {
+      if (leader.isLeader()) sweepTempRoles(client, store).catch((e) => reportError(e, { where: 'sweep' }));
+    }, 60_000),
+  );
 
   // Hourly: presence, data retention purge, daily backup window.
   let lastBackupDay = null;
   const hourly = async () => {
+    if (!leader.isLeader()) return;
     try {
       updatePresence();
       const cutoff = Date.now() - GAME.dataRetentionDays * 86_400_000;
@@ -120,11 +129,11 @@ client.once(Events.ClientReady, async (c) => {
   } catch (err) {
     reportError(err, { where: 'registerCommands' });
   }
-  await reconcileGuilds().catch((err) => reportError(err, { where: 'reconcile' }));
+  if (leader.isLeader()) await reconcileGuilds().catch((err) => reportError(err, { where: 'reconcile' }));
   scheduleMaintenance();
 });
 
-const health = startHealthServer({ port: config.healthPort, client, db });
+const health = startHealthServer({ port: config.healthPort, client, db, leader });
 
 let shuttingDown = false;
 async function shutdown(signal) {
@@ -133,6 +142,7 @@ async function shutdown(signal) {
   logger.info({ signal }, 'shutting down');
   timers.forEach(clearInterval);
   await Promise.race([queue.drain(), new Promise((r) => setTimeout(r, 5_000))]);
+  leader.stop(); // hand over immediately instead of waiting for the stale window
   await client.destroy().catch(() => {});
   health.close();
   try {
