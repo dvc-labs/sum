@@ -7,6 +7,7 @@ import { Store } from '../src/db/store.js';
 import { BRAND } from '../src/config.js';
 import { reconcileBrandRoles, syncBrandRole } from '../src/services/brand.js';
 import { onRoleDelete } from '../src/events/guilds.js';
+import { brandRoleIssue } from '../src/services/permissions.js';
 import Database from 'better-sqlite3';
 
 function world({ manageRoles = true, createError = null, existingRoles = [] } = {}) {
@@ -161,4 +162,61 @@ test('migration v2 is additive: existing servers keep their data and default to 
   assert.equal(row.brand_role_enabled, 1);
   assert.equal(row.brand_role_id, null);
   assert.equal(db.pragma('user_version', { simple: true }), MIGRATIONS.length);
+});
+
+test('a tracked role that vanished while Sum was offline switches the feature off instead of recreating it', async () => {
+  const w = world();
+  await syncBrandRole(w.client, w.store, 'g');
+  w.roles.delete('r1'); // deleted by an admin; Sum never saw the event
+  assert.equal(w.store.getGuild('g').brand_role_id, 'r1');
+  await reconcileBrandRoles(w.client, w.store);
+  const row = w.store.getGuild('g');
+  assert.equal(row.brand_role_enabled, 0);
+  assert.equal(row.brand_role_id, null);
+  assert.equal(w.calls.created.length, 1); // no replacement
+  await reconcileBrandRoles(w.client, w.store);
+  assert.equal(w.calls.created.length, 1);
+});
+
+test('an unavailable guild is left alone', async () => {
+  const w = world();
+  w.guild.available = false;
+  assert.equal(await syncBrandRole(w.client, w.store, 'g'), 'skipped');
+  assert.equal(w.calls.created.length, 0);
+});
+
+test('a failed delete on switch-off is reported, kept, and retried later', async () => {
+  const w = world();
+  await syncBrandRole(w.client, w.store, 'g');
+  const role = w.roles.get('r1');
+  const realDelete = role.delete;
+  role.delete = async () => { throw Object.assign(new Error('Missing Permissions'), { code: 50013 }); };
+  w.store.updateGuild('g', { brand_role_enabled: 0 });
+
+  assert.equal(await syncBrandRole(w.client, w.store, 'g'), 'failed');
+  assert.equal(w.store.getGuild('g').brand_role_id, 'r1'); // still tracked
+  assert.match(brandRoleIssue(w.guild, w.store.getGuild('g')), /couldn.t delete its colour role/);
+
+  role.delete = realDelete; // permission is back
+  await reconcileBrandRoles(w.client, w.store); // startup retries the cleanup
+  assert.equal(w.store.getGuild('g').brand_role_id, null);
+  assert.equal(brandRoleIssue(w.guild, w.store.getGuild('g')), null);
+});
+
+test('deleting a role that is already gone counts as success', async () => {
+  const w = world();
+  await syncBrandRole(w.client, w.store, 'g');
+  w.roles.get('r1').delete = async () => { throw Object.assign(new Error('Unknown Role'), { code: 10011 }); };
+  w.store.updateGuild('g', { brand_role_enabled: 0 });
+  assert.equal(await syncBrandRole(w.client, w.store, 'g'), 'removed');
+  assert.equal(w.store.getGuild('g').brand_role_id, null);
+});
+
+test('Roles tab explains why the colour role is missing', () => {
+  const w = world({ manageRoles: false });
+  assert.match(brandRoleIssue(w.guild, w.store.getGuild('g')), /Manage Roles/);
+  const w2 = world();
+  assert.match(brandRoleIssue(w2.guild, w2.store.getGuild('g')), /isn.t in place yet/);
+  w2.store.updateGuild('g', { brand_role_id: 'r1' });
+  assert.equal(brandRoleIssue(w2.guild, w2.store.getGuild('g')), null);
 });

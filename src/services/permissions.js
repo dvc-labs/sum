@@ -73,9 +73,16 @@ export function configIssues(guild, guildRow) {
   return issues;
 }
 
-/** Why Sum's colour role isn't in place, for the Settings → Roles tab. Null when all is well or switched off. */
+/** Why Sum's colour role isn't in the state the setting asks for, for the Settings → Roles tab. Null when all is well. */
 export function brandRoleIssue(guild, guildRow) {
-  if (!guild || !guildRow.brand_role_enabled || guildRow.brand_role_id) return null;
+  if (!guild) return null;
+  if (!guildRow.brand_role_enabled) {
+    // Switched off, but the delete didn't go through: say so instead of failing silently.
+    return guildRow.brand_role_id
+      ? 'Sum couldn\u2019t delete its colour role. Delete **Sum colour** yourself in Server Settings \u2192 Roles.'
+      : null;
+  }
+  if (guildRow.brand_role_id) return null;
   const me = guild.members.me;
   if (me && !me.permissions.has(PermissionFlagsBits.ManageRoles)) {
     return 'Sum needs **Manage Roles** to add its colour role.';

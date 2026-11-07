@@ -26,12 +26,21 @@ export const BRAND_ROLE_NAME = BRAND.roleName;
 export async function syncBrandRole(client, store, guildId, { by } = {}) {
   const row = store.getGuild(guildId);
   const guild = client.guilds.cache.get(guildId);
-  if (!row || !guild) return 'skipped';
+  if (!row || !guild || guild.available === false) return 'skipped'; // unavailable guild: roles aren't reliable
 
   try {
     const me = guild.members.me ?? (await guild.members.fetchMe());
     let existing = row.brand_role_id ? guild.roles.cache.get(row.brand_role_id) : null;
-    if (!existing && row.brand_role_enabled) {
+
+    if (row.brand_role_id && !existing && row.brand_role_enabled) {
+      // We made this role but it's gone: an admin deleted it while Sum was offline (or the event
+      // was missed). Deleting it means "off" — never quietly recreate it.
+      store.updateGuild(guildId, { brand_role_id: null, brand_role_enabled: 0 });
+      logger.info({ guildId, roleId: row.brand_role_id }, 'tracked brand colour role is gone — switched off');
+      return 'removed';
+    }
+
+    if (!existing && !row.brand_role_id && row.brand_role_enabled) {
       // Re-invited after being removed: adopt the role Sum left behind instead of making a second one.
       existing =
         guild.roles.cache.find(
@@ -77,7 +86,13 @@ export async function syncBrandRole(client, store, guildId, { by } = {}) {
 
 async function removeRole(store, row, role, by) {
   if (!row.brand_role_id) return 'ok';
-  if (role) await role.delete(by ? `Sum: brand colour role turned off by ${by}` : 'Sum: brand colour role turned off');
+  if (role) {
+    try {
+      await role.delete(by ? `Sum: brand colour role turned off by ${by}` : 'Sum: brand colour role turned off');
+    } catch (err) {
+      if (err?.code !== 10011) throw err; // already gone is fine; anything else keeps the id so we can report/retry
+    }
+  }
   store.updateGuild(row.guild_id, { brand_role_id: null });
   return 'removed';
 }
@@ -86,7 +101,9 @@ async function removeRole(store, row, role, by) {
 export async function reconcileBrandRoles(client, store) {
   for (const guild of client.guilds.cache.values()) {
     const row = store.getGuild(guild.id);
-    if (!row || row.left_at || !row.brand_role_enabled) continue;
+    if (!row || row.left_at) continue;
+    if (!row.brand_role_enabled && !row.brand_role_id) continue; // off and nothing left to clean up
+    // (a switched-off row that still tracks a role means an earlier delete failed: retry it)
     const result = await syncBrandRole(client, store, guild.id);
     if (result === 'created') {
       await logEvent(client, store.getGuild(guild.id), '🎨 Sum added its colour role', [
