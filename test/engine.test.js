@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { openDatabase } from '../src/db/index.js';
+import Database from 'better-sqlite3';
+import { migrate, openDatabase } from '../src/db/index.js';
+import { MIGRATIONS, SCHEMA_VERSION } from '../src/db/migrations.js';
 import { Store } from '../src/db/store.js';
 import { applyOutcome, evaluate, resetRun } from '../src/game/engine.js';
 import { parseCount } from '../src/game/parser.js';
@@ -156,4 +158,40 @@ test('retention purge only removes servers that left long ago', () => {
   assert.equal(store.purgeLeftBefore(2000), 1);
   assert.ok(store.getGuild('g'));
   assert.equal(store.getGuild('old'), null);
+});
+
+test('SQL rank matches leaderboard order for tied users and stays scoped to the guild', () => {
+  const { store } = setup();
+  store.ensureGuild('other');
+  for (const id of ['a', 'c', 'b']) store.recordCount('g', id, 1);
+  store.recordCount('other', 'z', 1);
+  assert.deepEqual(store.leaderboard('g', 'counts', 0).rows.map((row) => row.user_id), ['c', 'b', 'a']);
+  assert.deepEqual(store.rankOf('g', 'b'), { rank: 2, of: 3 });
+  assert.equal(store.rankOf('g', 'z'), null);
+  assert.equal(store.rankOf('g', 'b', 'accuracy'), null);
+});
+
+test('the v1 upgrade preserves existing state and expiry tracking while clearing old deletion benches', () => {
+  const db = new Database(':memory:');
+  db.pragma('foreign_keys = ON');
+  db.exec(MIGRATIONS[0]);
+  db.pragma('user_version = 1');
+  db.exec(`
+    INSERT INTO guilds (guild_id, current_count, last_message_id, created_at, updated_at)
+      VALUES ('g', 7, 'm', 1, 2);
+    INSERT INTO user_stats (guild_id, user_id, counts) VALUES ('g', 'p', 3);
+    INSERT INTO disqualified VALUES ('g', 'p', 1, 'delete', 1), ('g', 'q', 1, 'edit', 1);
+    INSERT INTO temp_roles VALUES ('g', 'p', 'r', 0);
+  `);
+  migrate(db);
+  migrate(db);
+  const store = new Store(db);
+  assert.equal(db.pragma('user_version', { simple: true }), SCHEMA_VERSION);
+  assert.equal(store.getGuild('g').current_count, 7);
+  assert.equal(store.getStats('g', 'p').counts, 3);
+  assert.equal(store.claimCount('g', 'm'), false);
+  assert.equal(store.isDisqualified('g', 'p', 1), false);
+  assert.equal(store.isDisqualified('g', 'q', 1), true);
+  assert.equal(store.getTempRole('g', 'p', 'r').retry_at, 0);
+  db.close();
 });

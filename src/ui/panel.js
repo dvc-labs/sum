@@ -48,7 +48,7 @@ const RULES = [
     key: 'rule_edit_delete',
     title: 'Bench count deleters & editors',
     off: 'Off: Sum still reposts the count, but nobody is benched.',
-    on: 'On: delete or edit your latest count and you sit out until the next reset.',
+    on: 'On: changing or deleting your latest count can bench you until the next reset.',
   },
   {
     key: 'math_enabled',
@@ -185,7 +185,7 @@ function leaderboardLine(category, s) {
 }
 
 export function leaderboardView(ctx, category = 'counts', page = 0) {
-  if (!CATEGORY_LABELS[category]) category = 'counts';
+  if (!Object.hasOwn(CATEGORY_LABELS, category)) category = 'counts';
   const board = ctx.store.leaderboard(ctx.guild.guild_id, category, page);
   const meta = CATEGORY_LABELS[category];
   const c = container(category === 'shame' ? ACCENT.danger : ACCENT.brand);
@@ -244,7 +244,7 @@ export function playerView(ctx, targetId = ctx.userId, targetIsBot = false) {
   const c = container();
   const self = targetId === ctx.userId;
   const s = ctx.store.getStats(ctx.guild.guild_id, targetId);
-  const rank = ctx.store.rankOf(ctx.guild.guild_id, targetId, 'counts');
+  const rank = s.counts > 0 ? ctx.store.rankOf(ctx.guild.guild_id, targetId, 'counts') : null;
 
   c.addTextDisplayComponents(text(`## 👤 ${self ? 'Your stats' : 'Player stats'}\n${user(targetId)}`));
   c.addSeparatorComponents(separator());
@@ -268,8 +268,8 @@ export function playerView(ctx, targetId = ctx.userId, targetIsBot = false) {
         ].join('\n'),
       ),
     );
-    if (ctx.store.isDisqualified(ctx.guild.guild_id, targetId, ctx.guild.run_id)) {
-      c.addTextDisplayComponents(text('⛔ Benched for this run (deleted or edited a count).'));
+    if (ctx.guild.rule_edit_delete && ctx.store.isDisqualified(ctx.guild.guild_id, targetId, ctx.guild.run_id)) {
+      c.addTextDisplayComponents(text('⛔ Benched for this run (edited or deleted a count).'));
     }
   }
 
@@ -287,9 +287,10 @@ export function playerView(ctx, targetId = ctx.userId, targetIsBot = false) {
 export function helpView(ctx) {
   const g = ctx.guild;
   const c = container();
+  const location = ctx.canViewGame ? channel(g.count_channel_id) : 'the counting channel';
   const rules = [
     '## ❓ How to play',
-    `Count up together in ${channel(g.count_channel_id)}, one number per message, starting at **1**.`,
+    `Count up together in ${location}, one number per message, starting at **1**.`,
     g.math_enabled ? 'Math counts too: `1+1`, `3x2`, `10/2`, `(4-1)*3`.' : 'Only plain numbers count.',
     'Your message just has to *start* with the count — `42 let’s gooo` is fine.',
   ];
@@ -303,13 +304,14 @@ export function helpView(ctx) {
       : `${e('crossmark')} Wrong numbers are rejected, the run continues.`,
     g.rule_double_count ? '👯 You can’t count twice in a row.' : '👯 Back-to-back counting is allowed.',
     g.rule_edit_delete
-      ? '✏️ Deleting or editing your latest count benches you until the next reset.'
+      ? '✏️ Changing your latest count benches you until the next reset.'
       : '✏️ Deleted or edited counts are reposted by Sum.',
+    g.rule_edit_delete && ctx.canCheckDeletes ? '🕵️ Sum can also bench likely self-deletions after checking the audit log.' : null,
     g.saves_enabled
       ? `🛟 Saves absorb a mistake. Earn one every ${GAME.saveInterval} counts (max ${GAME.maxSaves}).`
       : '🛟 Saves are off — every mistake counts.',
     g.strict_mode ? '🧹 Strict channel: anything that isn’t a count is removed.' : null,
-    g.ruined_role_enabled && g.ruined_role_id
+    ctx.canViewGame && g.ruined_role_enabled && g.ruined_role_id
       ? `🎭 Ruin a run and you get <@&${g.ruined_role_id}> for ${minutesLabel(g.ruined_role_minutes)}.`
       : null,
     `🎉 Milestones every ${fmt(GAME.milestoneReaction)}, a party every ${fmt(GAME.milestoneCard)}.`,
@@ -409,6 +411,9 @@ function settingsRules(ctx) {
   const g = ctx.guild;
   const c = container();
   c.addTextDisplayComponents(text('## 📜 Settings · Rules\nTap a button to flip a rule. Changes apply instantly.'));
+  c.addTextDisplayComponents(text(ctx.canCheckDeletes
+    ? '-# Sum checks the audit log for likely self-deletes. If it hits the scan limit, it reposts the count and skips the bench.'
+    : '-# Grant Sum **View Audit Log** if you also want it to check for self-deletions.'));
   c.addSeparatorComponents(separator());
   for (const rule of RULES) {
     const on = Boolean(g[rule.key]);
@@ -433,7 +438,7 @@ function settingsRole(ctx) {
       [
         '## 🎭 Settings · Ruined role',
         'Give whoever ruins a run a temporary role. Make it something fun like **@Ruined It**.',
-        '-# Sum’s own role must sit **above** this role in Server Settings → Roles.',
+        '-# Use a dedicated role without permission grants. Sum’s own role must sit **above** it.',
       ].join('\n'),
     ),
   );
@@ -479,13 +484,15 @@ function settingsDanger(ctx, confirm) {
     text(
       [
         '## 🧨 Settings · Danger zone',
-        `**Reset count** — sets the count back to 0 (currently ${fmt(g.current_count)}). High score, saves and player stats stay. Nobody gets blamed.`,
+        `**Reset count** — sets the count back to 0${ctx.canViewGame ? ` (currently ${fmt(g.current_count)})` : ''}. High score, saves and player stats stay. Nobody gets blamed.`,
         '**Wipe server data** — deletes every player stat, the high score and all settings for this server. Cannot be undone.',
       ].join('\n'),
     ),
   );
   c.addSeparatorComponents(separator());
-  if (confirm === 'reset') {
+  if (g.count_channel_id && !ctx.canViewGame) {
+    c.addTextDisplayComponents(text('You need access to the counting channel and **Read Message History** to reset or wipe this game.'));
+  } else if (confirm === 'reset') {
     c.addTextDisplayComponents(text('**Really reset the count to 0?**'));
     c.addActionRowComponents(
       row(
@@ -519,4 +526,13 @@ export function noAccessView(ctx) {
     text('## 🔒 Admins only\nSettings are for the server owner, Manage Server, and Sum admin roles.'),
   );
   return [c, navRow('overview', false)];
+}
+
+export function gameAccessView(ctx) {
+  const c = container(ACCENT.warning);
+  const message = ctx.guild.count_channel_id
+    ? 'You need access to the counting channel and **Read Message History** to view its game and player stats.'
+    : 'Ask a server admin to set up a counting channel first.';
+  c.addTextDisplayComponents(text(`## 🔒 Game unavailable\n${message}`));
+  return [c, navRow('overview', ctx.isAdmin)];
 }

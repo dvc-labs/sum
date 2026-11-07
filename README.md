@@ -6,7 +6,7 @@
 1 → 2 → 1+2 → 2x2 → 10/2 → 6 → … 💥
 ```
 
-**[➕ Add Sum to your server](https://discord.com/oauth2/authorize?client_id=1568278807444463708&permissions=268528704&integration_type=0&scope=bot+applications.commands)** · **[💬 Support: dvc.labs Discord](https://discord.gg/dRxSt8Bt9t)**
+**[➕ Add Sum to your server](https://discord.com/oauth2/authorize?client_id=1568278807444463708&permissions=268512320&integration_type=0&scope=bot+applications.commands)** · **[💬 Support: dvc.labs Discord](https://discord.gg/dRxSt8Bt9t)**
 
 ---
 
@@ -18,7 +18,7 @@
 - 🏆 **High score per server.** Every run chases the server's best, and passing it gets a celebration.
 - 📊 **Leaderboards.** Most counts, accuracy, best streak, and a Hall of Shame for whoever ruins runs.
 - 👤 **Player lookup.** Check your own stats or anyone else's.
-- 🕵️ **Anti-cheat.** Deleted or edited counts get reposted, and the player who did it sits out until the next reset.
+- 🕵️ **Anti-cheat.** Deleted or edited counts get reposted. Edits that change your latest number can bench you, and servers can opt in to audit-assisted benching for self-deletes.
 - 🎭 **Ruined role (optional).** Whoever ends a run gets a temporary role.
 - 🧹 **Strict channel (optional).** Messages that aren't counts are deleted.
 - 📝 **Log channel.** Moderators can see ruined runs, saves, records, tampering and setting changes.
@@ -26,7 +26,7 @@
 
 ## Get started
 
-1. **[Add Sum](https://discord.com/oauth2/authorize?client_id=1568278807444463708&permissions=268528704&integration_type=0&scope=bot+applications.commands)** to your server.
+1. **[Add Sum](https://discord.com/oauth2/authorize?client_id=1568278807444463708&permissions=268512320&integration_type=0&scope=bot+applications.commands)** to your server.
 2. Create a channel for counting. `#sum` works well.
 3. Run **`/sum`** and pick that channel in **⚙️ Settings**.
 4. Someone types **1**.

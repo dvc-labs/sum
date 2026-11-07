@@ -9,7 +9,7 @@ Sum has two commands. Everything else happens inside the panel.
 
 ## The `/sum` panel
 
-Use the buttons along the bottom to switch views.
+Use the buttons along the bottom to switch views. Game activity and player stats require **View Channel** and **Read Message History** in the counting channel. Anyone who can open `/sum` can read **How to play**.
 
 ### 📊 Overview
 The current count, the next number, who counted last, the high score, saves (and when the next one arrives), when this run started, all-time totals, and who ruined the last run.
@@ -36,6 +36,6 @@ The rules as they're currently set on **this** server.
 Only visible to Sum admins. See the [Admin guide](admin-guide.md).
 
 - **📍 Channels & admins:** counting channel, log channel, extra admin roles
-- **📜 Rules:** wrong-number rule, double-count rule, benching for deleted/edited counts, math mode, saves, strict channel
+- **📜 Rules** covers wrong numbers, double-counting, benching count deleters and editors, math mode, saves and strict channel
 - **🎭 Ruined role:** role, duration, on/off
 - **🧨 Danger zone:** reset the count, or wipe all server data

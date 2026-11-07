@@ -1,32 +1,35 @@
+import { escapeMarkdown } from 'discord.js';
 import { BRAND, GAME } from '../config.js';
 import { ACCENT, card, container, fineprint, fmt, linkButton, row, separator, text, ts, user } from './kit.js';
 import { btn, e } from './emoji.js';
 
 /* ───────────────────────── Counting channel cards ───────────────────────── */
 
-export function kickoffCard() {
+export function kickoffCard(guild) {
   return card({
     title: `${e('sum')} Sum is live in this channel!`,
     body: [
-      'Count up together, one number per message. Start with **1**.',
-      'Math works too: `1+1`, `2x2`, `10/2`. Don’t count twice in a row.',
+      `Count up together, one number per message. Next up is **${fmt((guild?.current_count ?? 0) + 1)}**.`,
+      (guild?.math_enabled ?? true) ? 'Math works too: `1+1`, `2x2`, `10/2`.' : 'Use plain numbers to count.',
+      (guild?.rule_double_count ?? true) ? 'Don’t count twice in a row.' : null,
       'Run `/sum` for stats, leaderboards and the rules.',
-    ].join('\n'),
+    ].filter(Boolean).join('\n'),
     footer: fineprint(),
   });
 }
 
-const REASON_TEXT = {
-  wrong: (o) => `typed **${o.got === null ? `\`${o.text}\`` : fmt(o.got)}** but the next number was **${fmt(o.expected)}**`,
-  double: () => 'counted twice in a row',
-};
+export function mistakeReason(outcome) {
+  if (outcome.reason === 'double') return 'counted twice in a row';
+  const attempt = outcome.got == null ? 'entered an invalid count' : `typed **${fmt(outcome.got)}**`;
+  return `${attempt} but the next number was **${fmt(outcome.expected)}**`;
+}
 
 export function ruinedCard(outcome, userId, guild) {
   return card({
     accent: ACCENT.danger,
     title: `💥 ${fmt(outcome.ruinedAt)} — run over!`,
     body: [
-      `${user(userId)} ${REASON_TEXT[outcome.reason](outcome)}.`,
+      `${user(userId)} ${mistakeReason(outcome)}.`,
       `The count is back to **0**. Start again with **1**.`,
       `🏆 High score: **${fmt(guild.high_score)}**`,
     ].join('\n'),
@@ -38,7 +41,7 @@ export function savedCard(outcome, userId) {
     accent: ACCENT.warning,
     title: '🛟 Save used!',
     body: [
-      `${user(userId)} ${REASON_TEXT[outcome.reason](outcome)}.`,
+      `${user(userId)} ${mistakeReason(outcome)}.`,
       `A save caught it. **${outcome.savesLeft}** left. Next number is still **${fmt(outcome.expected)}**.`,
     ].join('\n'),
   });
@@ -47,7 +50,7 @@ export function savedCard(outcome, userId) {
 export function rejectedNoticeCard(outcome, userId) {
   return card({
     accent: ACCENT.warning,
-    body: `${e('crossmark')} ${user(userId)} ${REASON_TEXT[outcome.reason](outcome)}. Next number is **${fmt(outcome.expected)}**.`,
+    body: `${e('crossmark')} ${user(userId)} ${mistakeReason(outcome)}. Next number is **${fmt(outcome.expected)}**.`,
   });
 }
 
@@ -77,7 +80,7 @@ export function tamperCard(kind, userId, number, benched) {
     accent: ACCENT.warning,
     title: kind === 'delete' ? '🕵️ A count vanished' : '🕵️ A count was edited',
     body: [
-      `${user(userId)} ${kind === 'delete' ? 'deleted' : 'edited'} their count. It was **${fmt(number)}**.`,
+      `${user(userId)}’s count was ${kind === 'delete' ? 'deleted' : 'edited'}. It was **${fmt(number)}**.`,
       `Next number is **${fmt(number + 1)}**.`,
       benched ? `⛔ ${user(userId)} is benched until the next reset.` : null,
     ]
@@ -102,7 +105,7 @@ export function welcomeDm(guildName, addressedToOwner) {
   c.addTextDisplayComponents(
     text(
       [
-        `## ${e('sum')} Thanks for inviting Sum to **${guildName}**! 🧡`,
+        `## ${e('sum')} Thanks for inviting Sum to **${escapeMarkdown(guildName, { maskedLink: true })}**! 🧡`,
         addressedToOwner ? '-# Sent to you as the server owner.' : null,
         'Sum is a classic counting game: your members count up one number at a time, and one mistake can end the run.',
       ]
@@ -137,7 +140,7 @@ export function welcomeDm(guildName, addressedToOwner) {
 export function ownerAlertDm(guildName, title, lines) {
   const c = container(ACCENT.warning);
   c.addTextDisplayComponents(
-    text([`## ⚠️ ${title}`, `-# Server: **${guildName}**`, ...lines].join('\n')),
+    text([`## ⚠️ ${title}`, `-# Server: **${escapeMarkdown(guildName, { maskedLink: true })}**`, ...lines].join('\n')),
   );
   c.addActionRowComponents(row(linkButton('Get help', BRAND.supportInvite, btn('dvc'))));
   c.addTextDisplayComponents(text(`-# ${fineprint()}`));

@@ -4,23 +4,32 @@
  * both be accepted. Different servers still run concurrently.
  */
 export class KeyedQueue {
-  constructor() {
+  constructor({ maxPerKey = Infinity, maxTotal = Infinity } = {}) {
     this.tails = new Map();
+    this.maxPerKey = maxPerKey;
+    this.maxTotal = maxTotal;
+    this.pending = 0;
   }
 
-  run(key, task) {
-    const prev = this.tails.get(key) ?? Promise.resolve();
-    const next = prev.then(task, task);
+  run(key, task, { essential = false } = {}) {
+    const entry = this.tails.get(key) ?? { tail: Promise.resolve(), pending: 0 };
+    if (!essential && (entry.pending >= this.maxPerKey || this.pending >= this.maxTotal)) return undefined;
+
+    entry.pending++;
+    this.pending++;
+    const next = entry.tail.then(task);
     const tail = next.catch(() => {});
-    this.tails.set(key, tail);
+    entry.tail = tail;
+    this.tails.set(key, entry);
     tail.then(() => {
-      if (this.tails.get(key) === tail) this.tails.delete(key);
+      this.pending--;
+      if (--entry.pending === 0) this.tails.delete(key);
     });
     return next;
   }
 
   /** Resolves when every queued task has settled (used on shutdown). */
   async drain() {
-    await Promise.allSettled([...this.tails.values()]);
+    await Promise.allSettled([...this.tails.values()].map(({ tail }) => tail));
   }
 }

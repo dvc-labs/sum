@@ -15,8 +15,10 @@ Counts are whole numbers without separators. Type `1000`, or be fancy with `10x1
 **I edited a typo in my count and got benched.**
 Only edits that change the number count as tampering. If your edit changed `42` into `43`, Sum has to assume something fishy. You're back in after the next reset.
 
-**A moderator deleted my count and now I'm benched.**
-Discord doesn't tell bots who deleted a message, so Sum assumes it was the author. Bulk deletes (purges) never bench anyone. An admin can turn off **Bench count deleters & editors**, or use **Reset count** to clear all benches.
+**When does deleting a count get me benched?**
+If Sum has **View Audit Log** and benching is on, it checks single deletions of the latest count for a matching moderation action. Sum can bench likely self-deletes. It skips the penalty for bulk deletes or when the check is unavailable or inconclusive. An admin can turn off **Bench count deleters & editors** or reset the run to clear benches.
+
+See the [audit scan limit in the admin guide](admin-guide.md#permissions).
 
 **How do saves work again?**
 1 to start, +1 each time the count reaches a multiple of 200, max 3. Each save absorbs one mistake. See [How to play](how-to-play.md#-saves).
