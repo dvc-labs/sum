@@ -16,7 +16,8 @@ export function reportError(err, { where, guildId } = {}) {
   if (now - lastSent < 10_000) return; // at most one alert per 10 s
   lastSent = now;
   const operation = where?.replace(/[^a-zA-Z0-9_ :.-]/g, '').slice(0, 80);
-  const summary = `**Sum error**${operation ? ` in \`${operation}\`` : ''}\n\`${JSON.stringify(error)}\``;
+  const { type, status, code } = error;
+  const summary = `**Sum error**${operation ? ` in \`${operation}\`` : ''}\n\`${JSON.stringify({ type, status, code })}\``;
   fetch(webhookUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

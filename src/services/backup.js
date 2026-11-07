@@ -1,10 +1,12 @@
-import { chmod, mkdir, readFile, readdir, rename, rm } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readFile, readdir, rename, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { GAME } from '../config.js';
 import { logger } from './logger.js';
 
 const RETENTION_MS = GAME.backupRetentionDays * 86_400_000;
+const PARTIAL_NAME = /^(.*\.db)\.[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}\.partial$/;
+const activeBackups = new Set();
 
 function snapshotTime(name) {
   const parts = /^sum-(\d{4}-\d{2}-\d{2}T\d{2})-(\d{2})-(\d{2})-(\d{3})Z\.db$/.exec(name);
@@ -25,6 +27,17 @@ export async function pruneBackups(backupDir, keep, now = Date.now()) {
   const snapshots = names.filter((name) => Number.isFinite(snapshotTime(name))).sort().reverse();
   const expired = snapshots.filter((name, i) => i >= keep || snapshotTime(name) <= now - RETENTION_MS);
   for (const name of expired) await rm(path.join(backupDir, name), { force: true });
+  for (const name of names) {
+    const partial = PARTIAL_NAME.exec(name);
+    if (!partial || !Number.isFinite(snapshotTime(partial[1]))) continue;
+    const file = path.resolve(backupDir, name);
+    if (activeBackups.has(file)) continue;
+    const stats = await lstat(file).catch((err) => {
+      if (err.code !== 'ENOENT') throw err;
+    });
+    // The last write is the best measure of age for an unfinished snapshot.
+    if (stats?.isFile() && stats.mtimeMs <= now - RETENTION_MS) await rm(file, { force: true });
+  }
   return snapshots.length - expired.length;
 }
 
@@ -55,13 +68,18 @@ export async function runBackup(db, { backupDir, keep, r2 }) {
   await mkdir(backupDir, { recursive: true, mode: 0o700 });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const file = path.join(backupDir, `sum-${stamp}.db`);
-  const pending = `${file}.${randomUUID()}.partial`;
+  const pending = path.resolve(`${file}.${randomUUID()}.partial`);
+  activeBackups.add(pending);
   try {
     await db.backup(pending);
     await chmod(pending, 0o600);
     await rename(pending, file);
   } finally {
-    await rm(pending, { force: true });
+    try {
+      await rm(pending, { force: true });
+    } finally {
+      activeBackups.delete(pending);
+    }
   }
 
   const kept = await pruneBackups(backupDir, keep);

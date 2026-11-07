@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { openDatabase } from '../src/db/index.js';
 import { Store } from '../src/db/store.js';
-import { pruneRemoteBackups, runBackup } from '../src/services/backup.js';
+import { pruneBackups, pruneRemoteBackups, runBackup } from '../src/services/backup.js';
 import { sweepTempRoles } from '../src/services/roles.js';
 import { KeyedQueue } from '../src/game/queue.js';
 import { onGuildCreate, reconcileGuilds } from '../src/events/guilds.js';
@@ -70,6 +70,36 @@ test('local snapshots expire by age even below the count limit', async () => {
   writeFileSync(path.join(dir, 'unrelated.db'), 'untouched');
   const file = await runBackup(db, { backupDir: dir, keep: 7, r2: null });
   assert.deepEqual(readdirSync(dir).sort(), [path.basename(file), 'unrelated.db'].sort());
+});
+
+test('partial snapshot cleanup preserves recent, unrelated and active files', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'sum-partial-'));
+  const date = new Date(0);
+  const suffix = '.460a65b2-fefd-45fa-8cc2-006a63c53181.partial';
+  const old = 'sum-2000-01-01T00-00-00-000Z.db' + suffix;
+  const recent = 'sum-2000-01-02T00-00-00-000Z.db' + suffix;
+  const unrelated = 'other.db' + suffix;
+  for (const name of [old, recent, unrelated]) writeFileSync(path.join(dir, name), '');
+  for (const name of [old, unrelated]) utimesSync(path.join(dir, name), date, date);
+
+  const started = Promise.withResolvers();
+  const finish = Promise.withResolvers();
+  const db = { backup: async (file) => {
+    writeFileSync(file, '');
+    utimesSync(file, date, date);
+    started.resolve(file);
+    await finish.promise;
+  } };
+  const backup = runBackup(db, { backupDir: dir, keep: 7, r2: null });
+  const active = path.basename(await started.promise);
+  try {
+    await pruneBackups(dir, 7);
+    assert.deepEqual(readdirSync(dir).sort(), [recent, unrelated, active].sort());
+  } finally {
+    finish.resolve();
+  }
+  const finished = await backup;
+  assert.deepEqual(readdirSync(dir).sort(), [recent, unrelated, path.basename(finished)].sort());
 });
 
 test('R2 pruning follows pagination and only deletes expired Sum snapshots in its prefix', async () => {

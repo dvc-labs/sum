@@ -35,6 +35,8 @@ Grant **Manage Messages** to Sum in the counting channel if you want it to delet
 
 Grant **Manage Roles** to Sum only if you use the optional ruined role. For existing installs, review these permissions on Sum’s Discord role and channel overrides.
 
+Grant **View Audit Log** to Sum if you want it to check single deletions of the latest count for moderation activity. With **Bench count deleters & editors** on, Sum can bench a likely self-delete after a short check. It skips the penalty when a moderator action matches or the audit check is inconclusive. Bulk deletions are reposted without a penalty.
+
 If Sum is missing something, the panel shows a ⚠️ warning. Sum also posts the problem in the log channel and DMs the server owner, at most once a day.
 
 ## Rules (⚙️ Settings → 📜 Rules)
@@ -43,7 +45,7 @@ If Sum is missing something, the panel shows a ⚠️ warning. Sum also posts th
 |---|---|---|---|
 | Wrong number ends the run | **On** | Resets the count to 0 (unless a save is used) | Wrong numbers get ❌, the run continues |
 | No counting twice in a row | **On** | Back-to-back counting is a mistake | Anyone can count anytime |
-| Bench count editors | **On** | Changing the number in your latest count benches you until the next reset | Sum reposts the count |
+| Bench count deleters & editors | **On** | Changing your latest number benches you until the next reset. Likely self-deletes can also bench you with **View Audit Log**. | Sum reposts the count |
 | Math mode | **On** | `1+1`, `2x3`, `8/2` … count | Only plain numbers count |
 | Saves | **On** | A save absorbs a mistake (1 to start, +1 every 200, max 3) | Every mistake counts |
 | Strict channel | **Off** | Messages that aren't counts are deleted | Chatter is allowed |
@@ -72,6 +74,8 @@ Sum logs:
 Choose a log channel whose members may see the game activity it receives. To select it, you need access to the counting channel and permission to post in the log channel. Clear the picker to turn logging off.
 
 ## Danger zone
+
+When a counting channel is configured, both actions require **View Channel** and **Read Message History** there.
 
 - **Reset count:** sets the count to 0 without blaming anyone. The high score, saves and player stats stay.
 - **Wipe server data** deletes live player stats, the high score and settings. Sum also queues cleanup for roles it granted. Older backups expire separately.

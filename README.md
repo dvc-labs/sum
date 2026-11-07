@@ -18,7 +18,7 @@
 - 🏆 **High score per server.** Every run chases the server's best, and passing it gets a celebration.
 - 📊 **Leaderboards.** Most counts, accuracy, best streak, and a Hall of Shame for whoever ruins runs.
 - 👤 **Player lookup.** Check your own stats or anyone else's.
-- 🕵️ **Anti-cheat.** Deleted or edited counts get reposted. Changing your latest count can bench you until the next reset.
+- 🕵️ **Anti-cheat.** Deleted or edited counts get reposted. Edits that change your latest number can bench you, and servers can opt in to audit-assisted benching for self-deletes.
 - 🎭 **Ruined role (optional).** Whoever ends a run gets a temporary role.
 - 🧹 **Strict channel (optional).** Messages that aren't counts are deleted.
 - 📝 **Log channel.** Moderators can see ruined runs, saves, records, tampering and setting changes.

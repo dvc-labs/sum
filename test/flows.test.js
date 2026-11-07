@@ -6,6 +6,7 @@ import { Store } from '../src/db/store.js';
 import { KeyedQueue } from '../src/game/queue.js';
 import { onMessageCreate, onMessageDelete, onMessageDeleteBulk, onMessageUpdate } from '../src/game/handler.js';
 import { onInteraction } from '../src/interactions/router.js';
+import { DeleteAudit } from '../src/services/delete-audit.js';
 import { BRAND } from '../src/config.js';
 import { reactionId } from '../src/ui/emoji.js';
 
@@ -18,8 +19,9 @@ function harness({ addRole = async () => {} } = {}) {
   const sent = [];
   const removedRoles = [];
   const grants = new Map();
-  const botPerms = new PermissionsBitField(PermissionFlagsBits.Administrator);
-  const memberPerms = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages;
+  const memberPerms = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages | PermissionFlagsBits.ReadMessageHistory;
+  const botPerms = new PermissionsBitField(memberPerms | PermissionFlagsBits.AddReactions |
+    PermissionFlagsBits.ManageMessages | PermissionFlagsBits.ManageRoles);
   const me = { permissions: botPerms, roles: { highest: { comparePositionTo: (role) => 10 - role.position } } };
   const makeChannel = (id) => ({
     id,
@@ -64,6 +66,7 @@ function harness({ addRole = async () => {} } = {}) {
     channels: { cache: new Map([['count', countChannel], ['other', otherChannel], ['log', logChannel]]) },
     roles: { cache: roles },
     fetchOwner: async () => ({ send: async () => {} }),
+    fetchAuditLogs: async () => ({ entries: new Collection() }),
   };
   const client = {
     guilds: { cache: new Map([['g', guild]]) },
@@ -71,7 +74,7 @@ function harness({ addRole = async () => {} } = {}) {
   };
   const app = {
     client, store, queue: new KeyedQueue(), effects: new KeyedQueue(), roleQueue: new KeyedQueue(),
-    config: { applicationId: '123' },
+    config: { applicationId: '123' }, deleteAudit: new DeleteAudit({ settleMs: 0 }),
   };
   store.ensureGuild('g');
   store.updateGuild('g', { count_channel_id: 'count' });
@@ -83,6 +86,7 @@ function harness({ addRole = async () => {} } = {}) {
       id: `m${++n}`,
       guildId: 'g',
       channelId: 'count',
+      createdTimestamp: Date.now(),
       content,
       url: 'https://discord.com/channels/g/count/x',
       author: { id: userId, bot: false },
@@ -153,7 +157,7 @@ function harness({ addRole = async () => {} } = {}) {
   };
 
   return {
-    app, store, sent, removedRoles, grants, countChannel, roles, say, interact, command,
+    app, store, sent, removedRoles, grants, guild, countChannel, roles, say, interact, command,
     g: () => store.getGuild('g'),
   };
 }
@@ -195,8 +199,15 @@ test('single and bulk deletes repost the count without benching its author', asy
   assert.ok(JSON.stringify(h.sent.at(-1).components).includes('vanished'));
   assert.equal(h.store.isDisqualified('g', 'b', h.g().run_id), false);
   const third = await h.say('a', '3');
+  h.guild.members.me.permissions.add(PermissionFlagsBits.ViewAuditLog);
+  let fetched = false;
+  h.guild.fetchAuditLogs = async () => {
+    fetched = true;
+    return { entries: new Collection() };
+  };
   await onMessageDeleteBulk(h.app, new Collection([[third.message.id, third.message]]), { guildId: 'g', id: 'count' });
   assert.equal(h.sent.length, 2);
+  assert.equal(fetched, false);
   assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), false);
 });
 
@@ -338,6 +349,26 @@ test('private channel activity is gated on every read path and cannot be exposed
   assert.equal(h.g().count_channel_id, 'count');
 });
 
+test('members without message history can read generic help, but cannot read stats or reset or wipe', async () => {
+  const h = harness();
+  await h.say('player', '1');
+  h.store.updateGuild('g', { admin_role_ids: ['modrole'] });
+  const channels = { count: PermissionFlagsBits.ViewChannel };
+  const delegate = { userId: 'delegate', roleIds: ['modrole'], channels };
+  const overview = await h.command('sum', 'delegate', channels);
+  assert.match(JSON.stringify(overview.components), /Read Message History/);
+  const help = await h.interact('sum:nav:help', delegate);
+  const helpText = JSON.stringify(help.components);
+  assert.match(helpText, /How to play/);
+  assert.doesNotMatch(helpText, /<#count>|<@player>/);
+  for (const action of ['reset', 'wipe']) {
+    const denied = await h.interact(`sum:danger:${action}:yes`, delegate);
+    assert.match(JSON.stringify(denied.components), /Read Message History/);
+    assert.equal(h.g().current_count, 1);
+    assert.equal(h.g().count_channel_id, 'count');
+  }
+});
+
 test('slow Discord effects leave counts and the reset acknowledgement responsive', async () => {
   const h = harness();
   const reaction = Promise.withResolvers();
@@ -373,6 +404,71 @@ test('events queued while a count is pending still see the accepted message', as
   assert.equal(h.g().current_count, 1);
   assert.equal(h.g().last_message_id, null);
   assert.match(JSON.stringify(h.sent.at(-1).components), /vanished/);
+});
+
+test('save and ruin reactions, cards and logs survive a saturated effects queue', async () => {
+  const h = harness();
+  h.app.effects = new KeyedQueue({ maxPerKey: 1 });
+  h.store.updateGuild('g', { log_channel_id: 'log' });
+  const slow = Promise.withResolvers();
+  const correct = h.say('a', '1', { react: () => slow.promise });
+  const save = h.say('b', '99');
+  const ruin = h.say('b', '98');
+  await h.app.queue.drain();
+  assert.equal(h.g().current_count, 0);
+  assert.equal(h.g().saves, 0);
+  slow.resolve();
+  const [, saved, ruined] = await Promise.all([correct, save, ruin]);
+  assert.deepEqual(saved.reactions, ['🛟']);
+  assert.deepEqual(ruined.reactions, [NO]);
+  const notices = JSON.stringify(h.sent.map((payload) => payload.components));
+  assert.match(notices, /Save used!/);
+  assert.match(notices, /Save used\*\*/);
+  assert.match(notices, /run over!/);
+  assert.match(notices, /Run ruined/);
+});
+
+test('a likely self-delete benches its author after the count is reposted', async () => {
+  const h = harness();
+  h.guild.members.me.permissions.add(PermissionFlagsBits.ViewAuditLog);
+  const { message } = await h.say('a', '1');
+  const started = Promise.withResolvers();
+  const lookup = Promise.withResolvers();
+  h.guild.fetchAuditLogs = async () => {
+    started.resolve();
+    return lookup.promise;
+  };
+  const deletion = onMessageDelete(h.app, message);
+  await started.promise;
+  assert.match(JSON.stringify(h.sent[0].components), /vanished/);
+  await h.say('b', '2');
+  assert.equal(h.g().current_count, 2);
+  lookup.resolve({ entries: new Collection() });
+  await deletion;
+  assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), true);
+  assert.match(JSON.stringify(h.sent.at(-1).components), /is benched/);
+  assert.deepEqual((await h.say('a', '3')).reactions, ['deleted']);
+});
+
+test('pending delete checks cannot bench someone after a reset or wipe', async () => {
+  for (const action of ['reset', 'wipe']) {
+    const h = harness();
+    h.guild.members.me.permissions.add(PermissionFlagsBits.ViewAuditLog);
+    const { message } = await h.say('a', '1');
+    const started = Promise.withResolvers();
+    const lookup = Promise.withResolvers();
+    h.guild.fetchAuditLogs = async () => {
+      started.resolve();
+      return lookup.promise;
+    };
+    const deletion = onMessageDelete(h.app, message);
+    await started.promise;
+    await h.interact(`sum:danger:${action}:yes`);
+    lookup.resolve({ entries: new Collection() });
+    await deletion;
+    assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), false);
+    assert.doesNotMatch(JSON.stringify(h.sent.map((payload) => payload.components)), /is benched/);
+  }
 });
 
 test('replayed successful and wrong attempts have no second effect', async () => {

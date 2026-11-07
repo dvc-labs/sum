@@ -57,8 +57,9 @@ Deleting or editing your count to confuse people won't work.
 
 - If the **latest** count is deleted, or edited so it shows a different number, Sum reposts it and tells everyone the next number.
 - If you edit your latest count to a different number and the rule is enabled, you are **benched until the next reset**. Your counts are removed (or marked ⛔) until the run ends.
+- If Sum has **View Audit Log**, it can also bench likely self-deletes after checking for moderation activity.
 - Adding text to your count without changing the number (`42` → `42 woo`) is fine.
-- Single and bulk deletions are reposted without benching anyone.
+- Bulk deletions, matching moderator deletions, and deletions Sum cannot check are reposted without a penalty.
 
 ## 🏆 High scores & milestones
 

@@ -61,6 +61,8 @@ function ctxWith(mutate) {
     guildName: 'Test Server',
     userId: 'u1',
     isAdmin: true,
+    canViewGame: Boolean(store.getGuild('g').count_channel_id),
+    canCheckDeletes: true,
     issues: ['Sum is missing **Add Reactions** in <#1>.'],
   };
 }

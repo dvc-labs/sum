@@ -14,6 +14,7 @@ import {
   settingsView,
 } from '../ui/panel.js';
 import { canManageRole, canUseChannel, configIssues, isSumAdmin, ruinedRoleIssue } from '../services/permissions.js';
+import { canReadDeleteAudit } from '../services/delete-audit.js';
 import { logEvent } from '../services/notify.js';
 import { reportError } from '../services/errors.js';
 import { sweepTempRoles } from '../services/roles.js';
@@ -22,7 +23,7 @@ import { writeIfLeader } from '../services/leader.js';
 const SETTING_LABELS = {
   rule_wrong_number: 'Wrong number ends the run',
   rule_double_count: 'No counting twice in a row',
-  rule_edit_delete: 'Bench count editors',
+  rule_edit_delete: 'Bench count deleters & editors',
   math_enabled: 'Math mode',
   saves_enabled: 'Saves',
   strict_mode: 'Strict channel',
@@ -42,7 +43,8 @@ function context(app, interaction) {
     userId: interaction.user.id,
     isAdmin,
     countChannel,
-    canViewGame: canUseChannel(interaction, countChannel),
+    canViewGame: canUseChannel(interaction, countChannel, PermissionFlagsBits.ReadMessageHistory),
+    canCheckDeletes: canReadDeleteAudit(interaction.guild),
     issues: isAdmin ? configIssues(interaction.guild, guild) : [],
   };
 }
@@ -109,7 +111,7 @@ async function onComponent(app, interaction) {
         case 'player':
           return showGame(() => playerView(ctx));
         case 'help':
-          return showGame(() => helpView(ctx));
+          return show(helpView(ctx));
         case 'settings':
           return show(ctx.isAdmin ? settingsView(ctx, 'channels') : noAccessView(ctx));
         default:
@@ -201,7 +203,7 @@ function setOption(app, interaction, ctx, action) {
       const target = interaction.guild.channels.cache.get(values[0]);
       if (target?.type !== ChannelType.GuildText || !canUseChannel(interaction, target) ||
           (countChannel && !ctx.canViewGame)) {
-        return { notice: 'Choose a text channel you can view. Moving the game also requires access to the current channel.' };
+        return { notice: 'Choose a text channel you can view. Moving the game also requires access and **Read Message History** in the current channel.' };
       }
       if (target.id === guild.count_channel_id) return {};
       if (needsManageMessages(interaction, target, guild) &&
@@ -223,7 +225,7 @@ function setOption(app, interaction, ctx, action) {
       if (channelId && (target?.type !== ChannelType.GuildText ||
           !canUseChannel(interaction, target, PermissionFlagsBits.SendMessages) ||
           (countChannel && !ctx.canViewGame))) {
-        return { notice: 'Choose a log channel you can view and post in. You also need access to the current counting channel.' };
+        return { notice: 'Choose a log channel you can view and post in. You also need access and **Read Message History** in the counting channel.' };
       }
       if (channelId === guild.log_channel_id) return {};
       const updated = store.updateGuild(id, { log_channel_id: channelId });
@@ -289,9 +291,9 @@ function toggleOption(app, interaction, ctx, key, tab) {
 
 function dangerOption(app, interaction, ctx, action) {
   const { guild, countChannel } = ctx;
+  if (guild.count_channel_id && !ctx.canViewGame) return { tab: 'danger' };
   const by = `<@${interaction.user.id}>`;
   if (action === 'reset') {
-    if (countChannel && !ctx.canViewGame) return { tab: 'danger', notice: 'You need access to the counting channel to reset it.' };
     const updated = resetRun(app.store, guild);
     return { tab: 'danger', notify: async () => {
       if (countChannel) {

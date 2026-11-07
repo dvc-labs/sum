@@ -2,7 +2,7 @@ import { PermissionFlagsBits } from 'discord.js';
 import { GAME } from '../config.js';
 import { parseCount } from './parser.js';
 import { applyOutcome, evaluate } from './engine.js';
-import { v2, ACCENT, fmt, user } from '../ui/kit.js';
+import { v2, ACCENT, card, fmt, user } from '../ui/kit.js';
 import {
   milestoneCard,
   mistakeReason,
@@ -112,9 +112,11 @@ function processCount(app, guild, message, content) {
     outcome,
   });
   return () => {
+    const essential = outcome.type === 'saved' || outcome.type === 'ruined' ||
+      (outcome.type === 'disqualified' && canManageMessages(message));
     const notification = countEffects(
       app, updated, (current) => announceCount(app, message, guild, updated, outcome, current),
-      { essential: outcome.type === 'disqualified' && canManageMessages(message) },
+      { essential },
     );
     const role = outcome.type === 'ruined' && updated.ruined_role_enabled
       ? app.roleQueue.run(guild.guild_id, () => assignRuinedRole(app, updated, message.author.id))
@@ -194,7 +196,9 @@ async function announceCount(app, message, guild, updated, outcome, current) {
 
 export function onMessageDelete(app, message) {
   return inCountingChannel(app, message.guildId, message.channelId, (guild) => {
-    if (guild.last_message_id === message.id) return handleTamper(app, guild, 'delete');
+    if (guild.last_message_id !== message.id) return;
+    const repost = handleTamper(app, guild, 'delete');
+    return () => Promise.all([repost(), benchSelfDelete(app, guild, message.createdTimestamp)]);
   });
 }
 
@@ -217,7 +221,6 @@ export function onMessageUpdate(app, oldMessage, message) {
 function handleTamper(app, guild, kind) {
   const { store, client } = app;
   const userId = guild.last_user_id;
-  // Both delete events identify the message, without identifying who deleted it.
   const bench = kind === 'edit' && Boolean(guild.rule_edit_delete) && Boolean(userId);
   store.updateGuild(guild.guild_id, { last_message_id: null });
   if (bench) store.disqualify(guild.guild_id, userId, guild.run_id, kind);
@@ -233,5 +236,36 @@ function handleTamper(app, guild, kind) {
       `${user(userId)}’s count **${fmt(guild.current_count)}** was ${kind === 'delete' ? 'deleted' : 'edited'}.`,
       bench ? 'They are benched until the next reset.' : null,
     ], ACCENT.warning);
+  }, { essential: true });
+}
+
+async function benchSelfDelete(app, guild, messageCreatedAt) {
+  const { client, store } = app;
+  const { guild_id: id, count_channel_id: channelId, last_user_id: authorId } = guild;
+  if (!guild.rule_edit_delete || !authorId) return;
+  const discordGuild = client.guilds.cache.get(id);
+  if (!await app.deleteAudit.likelySelfDelete(discordGuild, { authorId, channelId, messageCreatedAt })) return;
+
+  const sameRun = (current) => current && current.created_at === guild.created_at && !current.left_at &&
+    current.count_channel_id === channelId && current.run_id === guild.run_id && current.rule_edit_delete;
+  const benched = await app.queue.run(id, () => writeIfLeader(app, () => {
+    if (!sameRun(store.getGuild(id)) || store.isDisqualified(id, authorId, guild.run_id)) return false;
+    store.disqualify(id, authorId, guild.run_id, 'delete');
+    return true;
+  }));
+  if (!benched) return;
+
+  return countEffects(app, guild, async (current) => {
+    if (!sameRun(current)) return;
+    const line = `${user(authorId)} is benched until the next reset.`;
+    const channel = client.channels.cache.get(channelId);
+    if (channel?.isTextBased()) {
+      await safely(app, current, 'send a message', () => channel.send(v2([card({
+        title: '⛔ Deleted count',
+        body: line,
+        accent: ACCENT.warning,
+      })])));
+    }
+    await logEvent(client, current, '⛔ Player benched', [line, 'The audit check found no matching moderation action.'], ACCENT.warning);
   }, { essential: true });
 }

@@ -46,9 +46,9 @@ const RULES = [
   },
   {
     key: 'rule_edit_delete',
-    title: 'Bench count editors',
+    title: 'Bench count deleters & editors',
     off: 'Off: Sum still reposts the count, but nobody is benched.',
-    on: 'On: changing the number in your latest count benches you until the next reset.',
+    on: 'On: changing or deleting your latest count can bench you until the next reset.',
   },
   {
     key: 'math_enabled',
@@ -269,7 +269,7 @@ export function playerView(ctx, targetId = ctx.userId, targetIsBot = false) {
       ),
     );
     if (ctx.guild.rule_edit_delete && ctx.store.isDisqualified(ctx.guild.guild_id, targetId, ctx.guild.run_id)) {
-      c.addTextDisplayComponents(text('⛔ Benched for this run (edited a count).'));
+      c.addTextDisplayComponents(text('⛔ Benched for this run (edited or deleted a count).'));
     }
   }
 
@@ -287,9 +287,10 @@ export function playerView(ctx, targetId = ctx.userId, targetIsBot = false) {
 export function helpView(ctx) {
   const g = ctx.guild;
   const c = container();
+  const location = ctx.canViewGame ? channel(g.count_channel_id) : 'the counting channel';
   const rules = [
     '## ❓ How to play',
-    `Count up together in ${channel(g.count_channel_id)}, one number per message, starting at **1**.`,
+    `Count up together in ${location}, one number per message, starting at **1**.`,
     g.math_enabled ? 'Math counts too: `1+1`, `3x2`, `10/2`, `(4-1)*3`.' : 'Only plain numbers count.',
     'Your message just has to *start* with the count — `42 let’s gooo` is fine.',
   ];
@@ -303,13 +304,14 @@ export function helpView(ctx) {
       : `${e('crossmark')} Wrong numbers are rejected, the run continues.`,
     g.rule_double_count ? '👯 You can’t count twice in a row.' : '👯 Back-to-back counting is allowed.',
     g.rule_edit_delete
-      ? '✏️ Changing your latest count benches you until the next reset. Deleted counts are reposted.'
+      ? '✏️ Changing your latest count benches you until the next reset.'
       : '✏️ Deleted or edited counts are reposted by Sum.',
+    g.rule_edit_delete && ctx.canCheckDeletes ? '🕵️ Sum can also bench likely self-deletions after checking the audit log.' : null,
     g.saves_enabled
       ? `🛟 Saves absorb a mistake. Earn one every ${GAME.saveInterval} counts (max ${GAME.maxSaves}).`
       : '🛟 Saves are off — every mistake counts.',
     g.strict_mode ? '🧹 Strict channel: anything that isn’t a count is removed.' : null,
-    g.ruined_role_enabled && g.ruined_role_id
+    ctx.canViewGame && g.ruined_role_enabled && g.ruined_role_id
       ? `🎭 Ruin a run and you get <@&${g.ruined_role_id}> for ${minutesLabel(g.ruined_role_minutes)}.`
       : null,
     `🎉 Milestones every ${fmt(GAME.milestoneReaction)}, a party every ${fmt(GAME.milestoneCard)}.`,
@@ -409,6 +411,9 @@ function settingsRules(ctx) {
   const g = ctx.guild;
   const c = container();
   c.addTextDisplayComponents(text('## 📜 Settings · Rules\nTap a button to flip a rule. Changes apply instantly.'));
+  c.addTextDisplayComponents(text(ctx.canCheckDeletes
+    ? '-# Sum can check the server audit log before benching a player for deleting their count.'
+    : '-# Grant Sum **View Audit Log** if you also want it to check for self-deletions.'));
   c.addSeparatorComponents(separator());
   for (const rule of RULES) {
     const on = Boolean(g[rule.key]);
@@ -485,7 +490,9 @@ function settingsDanger(ctx, confirm) {
     ),
   );
   c.addSeparatorComponents(separator());
-  if (confirm === 'reset') {
+  if (g.count_channel_id && !ctx.canViewGame) {
+    c.addTextDisplayComponents(text('You need access to the counting channel and **Read Message History** to reset or wipe this game.'));
+  } else if (confirm === 'reset') {
     c.addTextDisplayComponents(text('**Really reset the count to 0?**'));
     c.addActionRowComponents(
       row(
@@ -524,7 +531,7 @@ export function noAccessView(ctx) {
 export function gameAccessView(ctx) {
   const c = container(ACCENT.warning);
   const message = ctx.guild.count_channel_id
-    ? 'You need access to the counting channel to view its game and player stats.'
+    ? 'You need access to the counting channel and **Read Message History** to view its game and player stats.'
     : 'Ask a server admin to set up a counting channel first.';
   c.addTextDisplayComponents(text(`## 🔒 Game unavailable\n${message}`));
   return [c, navRow('overview', ctx.isAdmin)];

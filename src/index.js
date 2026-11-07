@@ -12,6 +12,7 @@ import { startHealthServer } from './services/health.js';
 import { sweepTempRoles } from './services/roles.js';
 import { initErrorReporting, reportError } from './services/errors.js';
 import { Leader } from './services/leader.js';
+import { DeleteAudit } from './services/delete-audit.js';
 import { detectEmoji } from './ui/emoji.js';
 import { errorDetails, logger } from './services/logger.js';
 
@@ -44,7 +45,7 @@ const client = new Client({
   allowedMentions: { parse: [] },
 });
 
-const app = { client, store, queue, effects, roleQueue, config, leader };
+const app = { client, store, queue, effects, roleQueue, config, leader, deleteAudit: new DeleteAudit() };
 const timers = [];
 const jobs = new Set();
 let shuttingDown = false;

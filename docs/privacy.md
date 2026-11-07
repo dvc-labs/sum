@@ -1,12 +1,14 @@
 # 🔒 Privacy policy
 
-*Last updated: 6 November 2026*
+*Last updated: 7 November 2026*
 
 Sum is a counting game for Discord made by dvc. ([davevancauwenberghe.be](https://www.davevancauwenberghe.be)). This page explains what Sum stores and why.
 
 ## What Sum reads
 
 Discord delivers messages from channels Sum can see. Sum evaluates counts only in the configured counting channel. It keeps a short in-memory Discord message cache and does not write original message text to the database.
+
+If an admin grants **View Audit Log** and enables benching, Sum checks message-deletion audit entries to distinguish likely self-deletes from moderation. It uses a bounded in-memory cache of entry IDs and counts for the comparison. It stores the resulting game bench in the database, without copying the audit entries there.
 
 ## What Sum stores
 
@@ -34,7 +36,7 @@ Game data lives in a database on a server operated by dvc. Local backup snapshot
 
 ## Sharing
 
-Sum does not sell player data. Player stats are shown inside the server they belong to, to members who can view its counting channel. Optional game logs are visible to members who can see the configured log channel.
+Sum does not sell player data. Player stats are shown inside the server they belong to, to members with **View Channel** and **Read Message History** in its counting channel. Optional game logs are visible to members who can see the configured log channel.
 
 ## Your rights
 
