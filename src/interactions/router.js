@@ -154,10 +154,12 @@ const MODERATION_NOTICE = 'You need **Manage Messages** in the counting channel 
 const ROLE_NOTICE = 'You need **Manage Roles** and a role above the ruined role to configure it.';
 
 async function mutate(app, interaction, area, action, arg) {
+  const generation = app.leader?.generation;
   await interaction.deferUpdate();
   const id = interaction.guildId;
   const result = await app.queue.run(id, () => {
     const committed = writeIfLeader(app, () => {
+      if (app.leader?.generation !== generation) return;
       const ctx = context(app, interaction);
       if (!ctx?.isAdmin) return { view: noAccessView(ctx) };
 

@@ -18,6 +18,7 @@ export class Leader {
     this.heartbeatMs = heartbeatMs;
     this.staleMs = staleMs;
     this.leader = false;
+    this.generation = 0;
     this.timer = null;
     this.gatewayReady = () => true;
     this.onAcquire = null;
@@ -40,6 +41,7 @@ export class Leader {
     if (!this.gatewayReady()) return false;
     this.claimStmt.run({ owner: this.id, now });
     this.setLeader(true);
+    this.acquired();
     return true;
   }
 
@@ -48,8 +50,9 @@ export class Leader {
     // processed. Without a heartbeat a ready standby can still take over.
     if (!this.gatewayReady()) return false;
     const owned = this.beat.run(now, this.id).changes === 1;
-    const acquired = owned || this.claimStale.run({ owner: this.id, now, cutoff: now - this.staleMs }).changes === 1;
-    this.setLeader(acquired);
+    const claimed = !owned && this.claimStale.run({ owner: this.id, now, cutoff: now - this.staleMs }).changes === 1;
+    this.setLeader(owned || claimed);
+    if (claimed) this.acquired();
     return this.leader;
   }
 
@@ -57,8 +60,12 @@ export class Leader {
     if (value !== this.leader) {
       logger.info({ instance: this.id }, value ? 'this instance is now the leader' : 'another instance took over — standing by');
       this.leader = value;
-      if (value) this.onAcquire?.();
     }
+  }
+
+  acquired() {
+    this.generation++;
+    this.onAcquire?.();
   }
 
   isLeader() {

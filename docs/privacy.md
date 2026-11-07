@@ -8,6 +8,8 @@ Sum is a counting game for Discord made by dvc. ([davevancauwenberghe.be](https:
 
 Discord delivers messages from channels Sum can see. Sum evaluates counts only in the configured counting channel. It keeps a short in-memory Discord message cache and does not write original message text to the database.
 
+After a restart or a fresh connection, Sum can read the configured counting channel’s history to recover missed count attempts.
+
 If an admin grants **View Audit Log** and enables benching, Sum checks message-deletion audit entries to distinguish likely self-deletes from moderation. It uses a bounded in-memory cache of entry IDs and counts for the comparison. It stores the resulting game bench in the database, without copying the audit entries there.
 
 ## What Sum stores
@@ -18,6 +20,7 @@ If an admin grants **View Audit Log** and enables benching, Sum checks message-d
 | Your server's current count, high score, saves and totals | The game itself |
 | The ID of the latest count message and its author | To detect deleted/edited counts and enforce "no counting twice in a row" |
 | IDs of recent count attempts | To avoid processing a replayed Discord event twice. IDs expire after about 24 hours. |
+| Counting channel’s history cursor | To find where to resume checking history |
 | Per-player stats keyed by Discord user ID: counts, mistakes, runs ruined, streaks, highest number, time of last count | Leaderboards and player stats |
 | Who is benched for the current run | Anti-cheat |
 | Who currently has the ruined role, and until when | To remove it on time |

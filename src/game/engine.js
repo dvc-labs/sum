@@ -1,4 +1,5 @@
 import { GAME } from '../config.js';
+import { cursorAt } from './cursor.js';
 
 /**
  * Pure game rules. Given the guild state and an attempt, decide what happens.
@@ -104,9 +105,19 @@ export function applyOutcome(store, guild, { userId, messageId, outcome, now = D
   });
 }
 
+/** Used by both live and recovered messages inside the writer transaction. */
+export function recordCountAttempt(store, guild, { userId, messageId, parsed, now }) {
+  if (!parsed.attempt || !store.claimCount(guild.guild_id, messageId)) return null;
+  const disqualified = Boolean(guild.rule_edit_delete) && store.isDisqualified(guild.guild_id, userId, guild.run_id);
+  const outcome = evaluate(guild, { userId, parsed, disqualified });
+  const updated = applyOutcome(store, guild, { userId, messageId, outcome, now });
+  return { outcome, updated };
+}
+
 /** Admin "reset count": starts a new run without blaming anyone. */
 export function resetRun(store, guild, now = Date.now()) {
   return store.transaction(() => {
+    if (guild.count_channel_id) store.advanceCountCursor(guild.guild_id, cursorAt(now));
     const updated = store.updateGuild(guild.guild_id, freshRunPatch(guild, now), now);
     store.clearOldDisqualifications(guild.guild_id, updated.run_id);
     return updated;

@@ -1,8 +1,10 @@
 import { GAME } from '../config.js';
+import { cursorAt } from '../game/cursor.js';
 
 /** Columns that may be changed through updateGuild(). */
 const GUILD_COLUMNS = new Set([
   'count_channel_id',
+  'count_cursor',
   'log_channel_id',
   'admin_role_ids',
   'current_count',
@@ -66,6 +68,13 @@ export class Store {
     this.stmt = {
       getGuild: db.prepare('SELECT * FROM guilds WHERE guild_id = ?'),
       countingChannel: db.prepare('SELECT 1 FROM guilds WHERE guild_id = ? AND count_channel_id = ? AND left_at IS NULL'),
+      countingGuildIds: db.prepare('SELECT guild_id FROM guilds WHERE count_channel_id IS NOT NULL AND left_at IS NULL').pluck(),
+      advanceCountCursor: db.prepare(
+        `UPDATE guilds SET count_cursor = @messageId WHERE guild_id = @guildId AND (
+           count_cursor IS NULL OR length(count_cursor) < length(@messageId)
+           OR (length(count_cursor) = length(@messageId) AND count_cursor < @messageId)
+         )`,
+      ),
       insertGuild: db.prepare(
         `INSERT INTO guilds (guild_id, saves, run_started_at, ruined_role_minutes, joined_at, created_at, updated_at)
          VALUES (@guild_id, @saves, @now, @minutes, @now, @now, @now)
@@ -120,7 +129,9 @@ export class Store {
         'DELETE FROM temp_roles WHERE guild_id = ? AND user_id = ? AND role_id = ? AND retry_at = ?',
       ),
       deleteGuild: db.prepare('DELETE FROM guilds WHERE guild_id = ?'),
-      markLeft: db.prepare('UPDATE guilds SET left_at = ?, updated_at = ? WHERE guild_id = ? AND left_at IS NULL'),
+      markLeft: db.prepare(
+        'UPDATE guilds SET left_at = ?, updated_at = ?, count_cursor = NULL WHERE guild_id = ? AND left_at IS NULL',
+      ),
       purgeLeft: db.prepare('DELETE FROM guilds WHERE left_at IS NOT NULL AND left_at <= ?'),
       activeGuildIds: db.prepare('SELECT guild_id FROM guilds WHERE left_at IS NULL'),
     };
@@ -159,6 +170,14 @@ export class Store {
     return Boolean(this.stmt.countingChannel.get(guildId, channelId));
   }
 
+  countingGuildIds() {
+    return this.stmt.countingGuildIds.all();
+  }
+
+  advanceCountCursor(guildId, messageId) {
+    this.stmt.advanceCountCursor.run({ guildId, messageId });
+  }
+
   /** Creates the guild row on first sight. Returns { guild, created }. */
   ensureGuild(guildId, now = Date.now()) {
     const info = this.stmt.insertGuild.run({
@@ -171,6 +190,10 @@ export class Store {
   }
 
   updateGuild(guildId, patch, now = Date.now()) {
+    if (Object.hasOwn(patch, 'count_channel_id') &&
+        this.stmt.getGuild.get(guildId)?.count_channel_id !== patch.count_channel_id) {
+      patch = { ...patch, count_cursor: patch.count_channel_id ? cursorAt(now) : null };
+    }
     const entries = Object.entries(patch).filter(([k]) => GUILD_COLUMNS.has(k));
     if (entries.length === 0) return this.getGuild(guildId);
     const values = {};

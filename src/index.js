@@ -3,6 +3,7 @@ import { BRAND, GAME, loadConfig } from './config.js';
 import { openDatabase } from './db/index.js';
 import { Store } from './db/store.js';
 import { KeyedQueue } from './game/queue.js';
+import { CountCatchUp } from './game/catch-up.js';
 import { onMessageCreate, onMessageDelete, onMessageDeleteBulk, onMessageUpdate } from './game/handler.js';
 import { onChannelDelete, onGuildCreate, onGuildDelete, onRoleDelete, reconcileGuilds } from './events/guilds.js';
 import { onInteraction } from './interactions/router.js';
@@ -46,6 +47,7 @@ const client = new Client({
 });
 
 const app = { client, store, queue, effects, roleQueue, config, leader, deleteAudit: new DeleteAudit() };
+const catchUp = new CountCatchUp(app);
 const timers = [];
 const jobs = new Set();
 let shuttingDown = false;
@@ -76,8 +78,12 @@ client.on(Events.MessageDelete, guard('messageDelete', onMessageDelete));
 client.on(Events.MessageBulkDelete, guard('messageDeleteBulk', onMessageDeleteBulk));
 client.on(Events.MessageUpdate, guard('messageUpdate', onMessageUpdate));
 client.on(Events.InteractionCreate, guard('interaction', onInteraction));
-client.on(Events.GuildCreate, guard('guildCreate', onGuildCreate));
-client.on(Events.GuildAvailable, guard('guildAvailable', onGuildCreate));
+const joinGuild = (app, guild) => Promise.all([
+  onGuildCreate(app, guild),
+  catchUp.run(guild, { freshConnection: true }),
+]);
+client.on(Events.GuildCreate, guard('guildCreate', joinGuild));
+client.on(Events.GuildAvailable, guard('guildAvailable', joinGuild));
 client.on(Events.GuildDelete, guard('guildDelete', onGuildDelete));
 client.on(Events.ChannelDelete, guard('channelDelete', onChannelDelete));
 client.on(Events.GuildRoleDelete, guard('roleDelete', onRoleDelete));
@@ -87,7 +93,13 @@ client.on(Events.ShardResume, () => {
   logger.info('gateway resumed');
   refreshLease();
 });
-client.on(Events.ShardReady, refreshLease);
+client.on(Events.ShardReady, (shardId) => {
+  const generation = leader.generation;
+  refreshLease();
+  if (!shuttingDown && leader.timer && leader.generation === generation && leader.isLeader()) {
+    catchUp.runConfigured(shardId);
+  }
+});
 
 function updatePresence() {
   const n = client.guilds.cache.size;
@@ -138,6 +150,7 @@ client.once(Events.ClientReady, async (c) => {
   if (shuttingDown) return;
   leader.start(gatewayReady, () => {
     reconcileGuilds(app).catch((err) => reportError(err, { where: 'guild reconciliation' }));
+    catchUp.runConfigured();
   });
   scheduleMaintenance();
   try {
