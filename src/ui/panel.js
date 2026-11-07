@@ -48,7 +48,7 @@ const RULES = [
     key: 'rule_edit_delete',
     title: 'Bench after edits or deletes',
     off: 'Off · Sum reposts the count and play continues.',
-    on: 'On · Editing or deleting the latest count benches its author until the next reset. This includes moderator and bulk deletes.',
+    on: 'On · A text edit or single deletion of the latest count benches its author until the next reset. Bulk deletes only repost the count.',
   },
   {
     key: 'math_enabled',
@@ -292,8 +292,9 @@ export function helpView(ctx) {
     '## ❓ How to play',
     `Count up together in ${location}, one number per message, starting at **1**.`,
     'Digits and number emoji both work, like 1️⃣ and 🔟.',
-    'Use `.` or `,` for decimals with up to two decimal places. The result must be a whole number.',
-    g.math_enabled ? 'With Math mode, `1,5+0,5` and `1.05+0.95` both count as **2**.' : 'Math mode is off. Enter a single number.',
+    g.math_enabled
+      ? 'Math works too. Try `1+1` or `1,5+0,5` for **2**. Use `.` or `,` for up to two decimal places. The result must be a whole number.'
+      : 'Math mode is off. Start with a single whole number such as `2` or `2,00`.',
     'Your message just has to *start* with the count. `42 let’s gooo` is fine.',
   ];
   c.addTextDisplayComponents(text(rules.join('\n')));
@@ -306,7 +307,7 @@ export function helpView(ctx) {
       : `${e('crossmark')} Wrong numbers are rejected, the run continues.`,
     g.rule_double_count ? '👯 You can’t count twice in a row.' : '👯 Back-to-back counting is allowed.',
     g.rule_edit_delete
-      ? '✏️ An edit or deletion of the latest count benches its author until the next reset. That includes moderator and bulk deletes.'
+      ? '✏️ A text edit or single deletion of the latest count benches its author until the next reset. Bulk deletes only repost the count.'
       : '✏️ Sum reposts the latest count if it is edited or deleted.',
     g.saves_enabled
       ? `🛟 Saves absorb a mistake. Earn one every ${GAME.saveInterval} counts (max ${GAME.maxSaves}).`

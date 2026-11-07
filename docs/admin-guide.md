@@ -43,7 +43,7 @@ If Sum is missing something, the panel shows a ⚠️ warning. Sum also posts th
 |---|---|---|---|
 | Wrong number ends the run | **On** | Resets the count to 0 (unless a save is used) | Wrong numbers get ❌, the run continues |
 | No counting twice in a row | **On** | Back-to-back counting is a mistake | Anyone can count anytime |
-| Bench after edits or deletes | **On** | A text edit or deletion of the latest accepted count benches its author until the next reset, including moderator and bulk deletes | Sum reposts the count and play continues |
+| Bench after edits or deletes | **On** | A text edit or single deletion of the latest accepted count benches its author until the next reset. Bulk deletes only repost the count. | Sum reposts the count and play continues |
 | Math mode | **On** | Expressions like `1,5+0,5`, `2x3` and `8/2` count | Sum reads only the leading number |
 | Saves | **On** | A save absorbs a mistake (1 to start, +1 every 200, max 3) | Every mistake counts |
 | Strict channel | **Off** | Messages that aren't counts are deleted | Chatter is allowed |

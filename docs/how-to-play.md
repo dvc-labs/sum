@@ -13,10 +13,12 @@ Sam:   5 let's go ← extra text after the number is fine
 ## What counts as a count?
 
 - **Start** the message with the number or expression. You can add text after it, so `42 almost there` counts as 42.
+- Put a space before commentary. A trailing period or comma, as in `5.` or `5, nice`, makes the count invalid. Write `5 nice`.
 - Use digits or number emoji from 0️⃣ to 9️⃣, plus 🔟 for 10. Adjacent digits combine, so 1️⃣2️⃣ counts as 12.
 - **Math mode** (on by default) supports `+`, `-`, `*`, `x`, `×`, `/`, `÷` and parentheses. `2x3`, `12/4`, `(10-1)*2` all work.
 - Decimals use `.` or `,` with up to two digits after the separator. Write `0.5` with the leading zero. `1,5+0,5` and `1.05+0.95` both count as 2. With Math mode off, a single number such as `2,00` still works.
-- The result must be the next whole number. `1.5` and `3/2` are wrong counts. Use `1000` for a thousand.
+- The result must be the next whole number. `1.5` and `3/2` are wrong counts.
+- Write `1000` for a thousand. `1,000` and `1.000` exceed the two-place decimal limit.
 - Sum treats other messages as chatter. It ignores chatter, or deletes it in **Strict channel** mode.
 
 ## Reactions
@@ -55,7 +57,8 @@ Run `/sum` to see how many saves you have and when the next one arrives.
 ## 🕵️ Deleted & edited counts
 
 - If the **latest** accepted count is deleted or its text is edited, Sum reposts the number and tells everyone what comes next. Adding text (`42` → `42 woo`) counts as an edit.
-- With **Bench after edits or deletes** enabled, the count's author is **benched until the next reset**, including after a moderator or bulk deletion. Their count attempts are removed or marked ⛔.
+- With **Bench after edits or deletes** enabled, a text edit or a single deletion benches the count's author until the next reset. That includes a single message deleted by a moderator. The benched player's count attempts are removed or marked ⛔.
+- If a bulk purge deletes the latest count, Sum reposts it and play continues.
 - An admin can switch the rule off under **Settings → Rules** for reposts without benching.
 
 ## 🏆 High scores & milestones

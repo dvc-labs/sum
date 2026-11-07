@@ -141,7 +141,8 @@ class Parser {
 /**
  * @param {string} content raw message content
  * @param {{ allowMath?: boolean }} options
- * @returns {{ attempt: false } | { attempt: true, value: number | null, expression: boolean, text: string }}
+ * @returns {{ attempt: false } | { attempt: true, value: number | null,
+ *   expression: boolean, text: string, fractionalResult?: true }}
  */
 export function parseCount(content, { allowMath = true } = {}) {
   const text = (content ?? '').trim();
@@ -172,7 +173,7 @@ export function parseCount(content, { allowMath = true } = {}) {
 
   const expression = parser.ops > 0;
   const consumed = src.slice(0, parser.pos).trim();
-  if (result.d !== 1n) return { attempt: true, value: null, expression, text: consumed };
+  if (result.d !== 1n) return { attempt: true, value: null, expression, text: consumed, fractionalResult: true };
   const value = Number(result.n);
   if (!Number.isSafeInteger(value)) return { attempt: true, value: null, expression, text: consumed };
   return { attempt: true, value, expression, text: consumed };

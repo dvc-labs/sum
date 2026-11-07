@@ -210,7 +210,10 @@ export function onMessageDelete(app, message) {
 
 export function onMessageDeleteBulk(app, messages, channel) {
   return inCountingChannel(app, channel.guildId, channel.id, (guild) => {
-    if (guild.last_message_id && messages.has(guild.last_message_id)) return handleTamper(app, guild, 'delete');
+    if (guild.last_message_id && messages.has(guild.last_message_id)) {
+      // Bulk deletion requires moderator permissions.
+      return handleTamper(app, guild, 'delete', { allowBench: false });
+    }
   });
 }
 
@@ -225,10 +228,10 @@ export function onMessageUpdate(app, oldMessage, message) {
   });
 }
 
-function handleTamper(app, guild, kind) {
+function handleTamper(app, guild, kind, { allowBench = true } = {}) {
   const { store, client } = app;
   const userId = guild.last_user_id;
-  const bench = Boolean(guild.rule_edit_delete && userId);
+  const bench = allowBench && Boolean(guild.rule_edit_delete && userId);
   store.updateGuild(guild.guild_id, { last_message_id: null });
   if (bench) store.disqualify(guild.guild_id, userId, guild.run_id, kind);
 

@@ -188,7 +188,7 @@ test('strict mode deletes chatter', async () => {
   assert.deepEqual((await h.say('a', 'hi')).reactions, ['deleted']);
 });
 
-test('single and bulk deletes repost the latest count and bench its author', async () => {
+test('single deletes bench the latest counter and bulk deletes only repost the count', async () => {
   const h = harness();
   h.store.updateGuild('g', { log_channel_id: 'log' });
   const first = await h.say('a', '1');
@@ -205,13 +205,22 @@ test('single and bulk deletes repost the latest count and bench its author', asy
   assert.deepEqual((await h.say('b', '3')).reactions, ['deleted']);
 
   const third = await h.say('a', '3');
-  await onMessageDeleteBulk(h.app, new Collection([[third.message.id, third.message]]), { guildId: 'g', id: 'count' });
+  const chatter = await h.say('c', 'nice going');
+  const purged = new Collection([third.message, chatter.message].map((message) => [message.id, message]));
+  await onMessageDeleteBulk(h.app, purged, { guildId: 'g', id: 'count' });
   assert.equal(h.g().current_count, 3);
-  assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), true);
-  assert.match(JSON.stringify(h.sent[2].components), /vanished.*<@a> is benched/);
+  assert.equal(h.g().last_message_id, null);
+  assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), false);
+  const correction = JSON.stringify(h.sent[2].components);
+  const log = JSON.stringify(h.sent[3].components);
+  assert.match(correction, /vanished.*Next number is \*\*4\*\*/);
+  assert.match(log, /Count deleted/);
+  assert.doesNotMatch(correction + log, /benched/);
+  assert.deepEqual((await h.say('c', '4')).reactions, [OK]);
+  assert.deepEqual((await h.say('a', '5')).reactions, [OK]);
 
   await h.interact('sum:danger:reset:yes');
-  assert.deepEqual((await h.say('a', '1')).reactions, [OK]);
+  assert.deepEqual((await h.say('b', '1')).reactions, [OK]);
 });
 
 test('content edits bench the latest counter even when the number stays the same', async () => {
@@ -298,6 +307,12 @@ test('panel navigation, leaderboard and player lookup', async () => {
   const player = await h.interact('sum:player:pick', { users: new Collection([['b', { id: 'b', bot: false }]]) });
   const json = JSON.stringify(player.components);
   assert.ok(json.includes('Player stats') && json.includes('<@b>'));
+  h.store.updateGuild('g', { math_enabled: 0 });
+  const help = await h.interact('sum:nav:help');
+  const helpText = JSON.stringify(help.components);
+  assert.match(helpText, /Math mode is off.*2,00/);
+  assert.match(helpText, /number emoji/);
+  assert.doesNotMatch(helpText, /1,5\+0,5/);
 });
 
 test('danger zone: reset and wipe', async () => {
@@ -478,6 +493,18 @@ test('invalid count text never reaches announcement or log cards', async () => {
     const rendered = JSON.stringify(payload.components);
     assert.match(rendered, /entered an invalid count/);
     assert.doesNotMatch(rendered, /example\.invalid/);
+  }
+});
+
+test('fractional results explain the whole-number rule in announcements and logs', async () => {
+  const h = harness();
+  h.store.updateGuild('g', { log_channel_id: 'log' });
+  await h.say('a', '1');
+  assert.deepEqual((await h.say('b', '1/3')).reactions, ['🛟']);
+  assert.deepEqual((await h.say('b', '1,5')).reactions, [NO]);
+  assert.equal(h.sent.length, 4);
+  for (const payload of h.sent) {
+    assert.match(JSON.stringify(payload.components), /got a fractional result\. Counts must be whole numbers/);
   }
 });
 

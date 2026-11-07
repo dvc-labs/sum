@@ -18,7 +18,7 @@
 - 🏆 **High score per server.** Every run chases the server's best, and passing it gets a celebration.
 - 📊 **Leaderboards.** Most counts, accuracy, best streak, and a Hall of Shame for whoever ruins runs.
 - 👤 **Player lookup.** Check your own stats or anyone else's.
-- 🕵️ **Anti-cheat.** If the latest count is edited or deleted, Sum reposts it and benches its author by default. This includes moderator and bulk deletes.
+- 🕵️ **Anti-cheat.** A text edit or single deletion of the latest count benches its author by default. Bulk deletes only repost the count.
 - 🎭 **Ruined role (optional).** Whoever ends a run gets a temporary role.
 - 🧹 **Strict channel (optional).** Messages that aren't counts are deleted.
 - 📝 **Log channel.** Moderators can see ruined runs, saves, records, tampering and setting changes.
