@@ -20,7 +20,7 @@ import {
   ts,
   user,
 } from './kit.js';
-
+import { btn, e } from './emoji.js';
 /**
  * The /sum panel. Every view is a pure function of a context object:
  * { store, guild, guildName, userId, isAdmin, issues: string[] }
@@ -35,7 +35,7 @@ const RULES = [
   {
     key: 'rule_wrong_number',
     title: 'Wrong number ends the run',
-    off: 'Off: wrong numbers get a ❌ but the run keeps going.',
+    off: 'Off: wrong numbers are rejected, but the run keeps going.',
     on: 'On: a wrong number resets the count to 0 (unless a save kicks in).',
   },
   {
@@ -80,7 +80,7 @@ function minutesLabel(m) {
 
 function navRow(active, isAdmin) {
   const nav = [
-    ['overview', 'Overview', '📊'],
+    ['overview', 'Overview', btn('sum')],
     ['leaderboard', 'Leaderboard', '🏆'],
     ['player', 'Players', '👤'],
     ['help', 'How to play', '❓'],
@@ -110,7 +110,7 @@ export function overviewView(ctx) {
     c.addTextDisplayComponents(
       text(
         [
-          `## Sum · ${guildName}`,
+          `## ${e('sum')} Sum · ${guildName}`,
           'Sum isn’t counting anywhere yet.',
           ctx.isAdmin
             ? 'Open **⚙️ Settings** to pick a counting channel — a fresh `#sum` channel works great.'
@@ -122,7 +122,7 @@ export function overviewView(ctx) {
   }
 
   const lines = [
-    `## Sum · ${guildName}`,
+    `## ${e('sum')} Sum · ${guildName}`,
     `# ${fmt(guild.current_count)}`,
     `Next up: **${fmt(guild.current_count + 1)}** in ${channel(guild.count_channel_id)}`,
     `Last counted by ${user(guild.last_user_id)}`,
@@ -298,7 +298,9 @@ export function helpView(ctx) {
 
   const active = [
     '### Rules on this server',
-    g.rule_wrong_number ? '❌ A wrong number ends the run.' : '❌ Wrong numbers are rejected, the run continues.',
+    g.rule_wrong_number
+      ? `${e('crossmark')} A wrong number ends the run.`
+      : `${e('crossmark')} Wrong numbers are rejected, the run continues.`,
     g.rule_double_count ? '👯 You can’t count twice in a row.' : '👯 Back-to-back counting is allowed.',
     g.rule_edit_delete
       ? '✏️ Deleting or editing your latest count benches you until the next reset.'
@@ -356,7 +358,7 @@ function settingsChannels(ctx) {
   const setup = !g.count_channel_id;
   const intro = setup
     ? [
-        '## 👋 Let’s set up Sum',
+        `## ${e('sum')} Let’s set up Sum`,
         '**1.** Create a channel for counting — we suggest **`#sum`** (any name works).',
         '**2.** Pick it below. Sum will post a kick-off message there.',
         '**3.** Optional: pick a log channel (mods only) and extra admin roles.',
@@ -413,7 +415,9 @@ function settingsRules(ctx) {
     c.addSectionComponents(
       sectionWithButton(
         `**${rule.title}**\n-# ${on ? rule.on : rule.off}`,
-        button(`sum:toggle:${rule.key}:rules`, on ? 'On' : 'Off', on ? ButtonStyle.Success : ButtonStyle.Secondary),
+        button(`sum:toggle:${rule.key}:rules`, on ? 'On' : 'Off', on ? ButtonStyle.Success : ButtonStyle.Secondary, {
+          emoji: btn(on ? 'checkmark' : 'crossmark'),
+        }),
       ),
     );
   }
@@ -441,6 +445,7 @@ function settingsRole(ctx) {
         g.ruined_role_id ? `<@&${g.ruined_role_id}>` : '*none picked*'
       } · Duration: ${minutesLabel(g.ruined_role_minutes)}`,
       button(`sum:toggle:ruined_role_enabled:role`, on ? 'On' : 'Off', on ? ButtonStyle.Success : ButtonStyle.Secondary, {
+        emoji: btn(on ? 'checkmark' : 'crossmark'),
         disabled: !on && !g.ruined_role_id,
       }),
     ),

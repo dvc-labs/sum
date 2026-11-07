@@ -2,6 +2,16 @@
 
 All notable changes to Sum are listed here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.1] — 2026-11-07
+
+### Added
+- **Custom emoji.** Sum now uses its own emoji across the bot:
+  - a custom **checkmark** and **crossmark** for count reactions, the "wrong number" lines and the On/Off rule toggles
+  - the **Sum logo** in headings, the Overview button, kick-off, welcome and `/about` cards, and the "Add Sum" button
+  - the **dvc. logo** on the support, website and help buttons and in the fine print
+- Safe fallback: if a custom emoji ever can't be shown, Sum uses ✅ ❌ 🔢 🧡 instead, so reactions and cards keep working.
+- Sum checks its emoji at startup and notes any problem in its logs.
+
 ## [0.1.0] — 2026-11-06
 
 The first public release. 🎉

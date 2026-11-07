@@ -13,13 +13,18 @@ import {
 import { logEvent, warnOwner } from '../services/notify.js';
 import { assignRuinedRole } from '../services/roles.js';
 import { isPermissionError, reportError } from '../services/errors.js';
+import { reactWith } from '../ui/emoji.js';
 
+/**
+ * Reaction identifiers. `custom` ones are keys of Sum's custom emoji (see ui/emoji.js)
+ * and fall back to unicode automatically; the rest are plain unicode.
+ */
 const EMOJI = {
-  ok: '✅',
+  ok: { custom: 'checkmark' },
+  wrong: { custom: 'crossmark' },
   beyondRecord: '☑️',
   hundred: '💯',
   thousand: '🎉',
-  wrong: '❌',
   saved: '🛟',
   benched: '⛔',
 };
@@ -87,7 +92,8 @@ async function processCount(app, message) {
   });
   const send = (container, what = 'send a message') =>
     safely(app, updated, what, () => message.channel.send(v2([container])));
-  const react = (emoji) => safely(app, updated, 'add reactions', () => message.react(emoji));
+  const react = (emoji) =>
+    safely(app, updated, 'add reactions', () => (emoji.custom ? reactWith(message, emoji.custom) : message.react(emoji)));
 
   switch (outcome.type) {
     case 'disqualified':

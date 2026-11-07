@@ -6,6 +6,11 @@ import { Store } from '../src/db/store.js';
 import { KeyedQueue } from '../src/game/queue.js';
 import { onMessageCreate, onMessageDelete, onMessageUpdate } from '../src/game/handler.js';
 import { onInteraction } from '../src/interactions/router.js';
+import { BRAND } from '../src/config.js';
+import { reactionId } from '../src/ui/emoji.js';
+
+const OK = reactionId('checkmark');
+const NO = reactionId('crossmark');
 
 /** Minimal fakes of the discord.js objects Sum touches. */
 function harness() {
@@ -115,12 +120,12 @@ function harness() {
 
 test('a counting session end to end', async () => {
   const h = harness();
-  assert.deepEqual((await h.say('a', '1')).reactions, ['✅']);
-  assert.deepEqual((await h.say('b', '1+1')).reactions, ['✅']);
+  assert.deepEqual((await h.say('a', '1')).reactions, [OK]);
+  assert.deepEqual((await h.say('b', '1+1')).reactions, [OK]);
   assert.deepEqual((await h.say('b', 'hello there')).reactions, []); // chatter ignored
   assert.deepEqual((await h.say('b', '3')).reactions, ['🛟']); // double → save
   assert.equal(h.g().current_count, 2);
-  assert.deepEqual((await h.say('a', '7')).reactions, ['❌']); // wrong → ruin
+  assert.deepEqual((await h.say('a', '7')).reactions, [NO]); // wrong → ruin
   assert.equal(h.g().current_count, 0);
   const lastCard = JSON.stringify(h.sent.at(-1).components);
   assert.ok(lastCard.includes('run over'));
@@ -132,8 +137,8 @@ test('concurrent identical counts: only one is accepted', async () => {
   await h.say('a', '1');
   h.store.updateGuild('g', { saves_enabled: 0 });
   const [x, y] = await Promise.all([h.say('b', '2'), h.say('c', '2')]);
-  assert.deepEqual(x.reactions, ['✅']);
-  assert.deepEqual(y.reactions, ['❌']);
+  assert.deepEqual(x.reactions, [OK]);
+  assert.deepEqual(y.reactions, [NO]);
 });
 
 test('strict mode deletes chatter', async () => {
@@ -149,7 +154,7 @@ test('deleting the latest count reposts it and benches the player', async () => 
   await onMessageDelete(h.app, { id: message.id, guildId: 'g', channelId: 'count' });
   assert.ok(JSON.stringify(h.sent.at(-1).components).includes('vanished'));
   assert.deepEqual((await h.say('b', '3')).reactions, ['deleted']); // benched → removed
-  assert.deepEqual((await h.say('a', '3')).reactions, ['✅']);
+  assert.deepEqual((await h.say('a', '3')).reactions, [OK]);
 });
 
 test('cosmetic edits are fine, number changes are tampering', async () => {
@@ -176,7 +181,7 @@ test('/about shows version, brand colour and links', async () => {
   const h = harness();
   const about = await h.command('about');
   const json = JSON.stringify(about.components);
-  assert.ok(json.includes('v0.1.0'));
+  assert.ok(json.includes(`v${BRAND.version}`));
   assert.ok(json.includes('discord.gg/dRxSt8Bt9t'));
   assert.ok(json.includes('davevancauwenberghe.be'));
   assert.equal(about.components[0].toJSON().accent_color, 0xff4500);

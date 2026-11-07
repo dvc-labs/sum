@@ -10,6 +10,7 @@ import {
   TextDisplayBuilder,
 } from 'discord.js';
 import { BRAND } from '../config.js';
+import { e } from './emoji.js';
 
 /** Accent colours. Brand orange is the default for every "normal" card. */
 export const ACCENT = Object.freeze({
@@ -19,6 +20,9 @@ export const ACCENT = Object.freeze({
   danger: 0xe74c3c,
   celebrate: 0xffb000,
 });
+
+/** The signature fine print: dvc. logo + "With love from dvc." */
+export const fineprint = () => `${e('dvc')} ${BRAND.fineprint}`;
 
 export const NO_MENTIONS = Object.freeze({ parse: [] });
 
