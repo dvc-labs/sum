@@ -46,15 +46,15 @@ const RULES = [
   },
   {
     key: 'rule_edit_delete',
-    title: 'Bench count deleters & editors',
-    off: 'Off: Sum still reposts the count, but nobody is benched.',
-    on: 'On: changing or deleting your latest count can bench you until the next reset.',
+    title: 'Bench after edits or deletes',
+    off: 'Off · Sum reposts the count and play continues.',
+    on: 'On · Editing or deleting the latest count benches its author until the next reset. This includes moderator and bulk deletes.',
   },
   {
     key: 'math_enabled',
     title: 'Math mode',
-    off: 'Off: only plain numbers count.',
-    on: 'On: `1+1`, `2x3`, `8/2`, `(5-1)*2` all count.',
+    off: 'Off · Start with a single number.',
+    on: 'On · Expressions like `1,5+0,5`, `2x3` and `8/2` count.',
   },
   {
     key: 'saves_enabled',
@@ -269,7 +269,7 @@ export function playerView(ctx, targetId = ctx.userId, targetIsBot = false) {
       ),
     );
     if (ctx.guild.rule_edit_delete && ctx.store.isDisqualified(ctx.guild.guild_id, targetId, ctx.guild.run_id)) {
-      c.addTextDisplayComponents(text('⛔ Benched for this run (edited or deleted a count).'));
+      c.addTextDisplayComponents(text('⛔ Benched until the next reset.'));
     }
   }
 
@@ -291,8 +291,10 @@ export function helpView(ctx) {
   const rules = [
     '## ❓ How to play',
     `Count up together in ${location}, one number per message, starting at **1**.`,
-    g.math_enabled ? 'Math counts too: `1+1`, `3x2`, `10/2`, `(4-1)*3`.' : 'Only plain numbers count.',
-    'Your message just has to *start* with the count — `42 let’s gooo` is fine.',
+    'Digits and number emoji both work, like 1️⃣ and 🔟.',
+    'Use `.` or `,` for decimals with up to two decimal places. The result must be a whole number.',
+    g.math_enabled ? 'With Math mode, `1,5+0,5` and `1.05+0.95` both count as **2**.' : 'Math mode is off. Enter a single number.',
+    'Your message just has to *start* with the count. `42 let’s gooo` is fine.',
   ];
   c.addTextDisplayComponents(text(rules.join('\n')));
   c.addSeparatorComponents(separator());
@@ -304,9 +306,8 @@ export function helpView(ctx) {
       : `${e('crossmark')} Wrong numbers are rejected, the run continues.`,
     g.rule_double_count ? '👯 You can’t count twice in a row.' : '👯 Back-to-back counting is allowed.',
     g.rule_edit_delete
-      ? '✏️ Changing your latest count benches you until the next reset.'
-      : '✏️ Deleted or edited counts are reposted by Sum.',
-    g.rule_edit_delete && ctx.canCheckDeletes ? '🕵️ Sum can also bench likely self-deletions after checking the audit log.' : null,
+      ? '✏️ An edit or deletion of the latest count benches its author until the next reset. That includes moderator and bulk deletes.'
+      : '✏️ Sum reposts the latest count if it is edited or deleted.',
     g.saves_enabled
       ? `🛟 Saves absorb a mistake. Earn one every ${GAME.saveInterval} counts (max ${GAME.maxSaves}).`
       : '🛟 Saves are off — every mistake counts.',
@@ -411,9 +412,6 @@ function settingsRules(ctx) {
   const g = ctx.guild;
   const c = container();
   c.addTextDisplayComponents(text('## 📜 Settings · Rules\nTap a button to flip a rule. Changes apply instantly.'));
-  c.addTextDisplayComponents(text(ctx.canCheckDeletes
-    ? '-# Sum checks the audit log for likely self-deletes. If it hits the scan limit, it reposts the count and skips the bench.'
-    : '-# Grant Sum **View Audit Log** if you also want it to check for self-deletions.'));
   c.addSeparatorComponents(separator());
   for (const rule of RULES) {
     const on = Boolean(g[rule.key]);

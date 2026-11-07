@@ -64,7 +64,8 @@ test('catch-up pages backwards and commits surviving attempts oldest first', asy
   const h = fixture();
   await onMessageCreate(h.app, h.message(1001, 'a', 1));
   h.history.push(h.message(1001, 'a', 1));
-  for (let n = 2; n <= 102; n++) h.history.push(h.message(1000 + n, n % 2 ? 'a' : 'b', n));
+  h.history.push(h.message(1002, 'b', '1.05+0.95'), h.message(1003, 'a', '3️⃣'));
+  for (let n = 4; n <= 102; n++) h.history.push(h.message(1000 + n, n % 2 ? 'a' : 'b', n));
   h.history.push(h.message(1103, 'bot', 103, true));
   await h.recover();
 

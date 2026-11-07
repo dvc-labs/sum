@@ -18,7 +18,7 @@ Only Sum admins see the **⚙️ Settings** button in `/sum`.
 4. *(Optional)* Pick a **log channel**. A private mod channel is ideal.
 5. *(Optional)* Add **Sum admin roles**, for example your moderator role.
 
-When Sum joins a server, it DMs the server owner a thank-you note with these steps.
+When Sum joins a server, it DMs the server owner a thank-you note with these steps. If Sum already has **View Audit Log**, it can send the note to the installer.
 
 ## Permissions
 
@@ -35,12 +35,6 @@ The invite link asks for these permissions:
 
 A Sum admin who enables message deletion or moves the game to a channel where Sum will delete messages also needs Discord’s **Manage Messages** permission there.
 
-Grant **View Audit Log** to Sum if you want it to check single deletions of the latest count for moderation activity. With **Bench count deleters & editors** on, Sum can bench a likely self-delete after a short check. It skips the penalty when a moderator action matches or the audit check is inconclusive. Bulk deletions are reposted without a penalty.
-
-Sum scans up to three pages of 100 message-deletion audit entries per check. If all three pages are full, it reposts the count and skips the bench, even when the 300 entries are for unrelated deletions.
-
-A single-delete event identifies the message and channel. Sum waits three seconds for the audit log and infers who deleted it from matching entries. A moderation deletion whose entry is late or absent can look like a self-delete. Count edits still follow the usual benching rule.
-
 If Sum is missing something, the panel shows a ⚠️ warning. Sum also posts the problem in the log channel and DMs the server owner, at most once a day.
 
 ## Rules (⚙️ Settings → 📜 Rules)
@@ -49,8 +43,8 @@ If Sum is missing something, the panel shows a ⚠️ warning. Sum also posts th
 |---|---|---|---|
 | Wrong number ends the run | **On** | Resets the count to 0 (unless a save is used) | Wrong numbers get ❌, the run continues |
 | No counting twice in a row | **On** | Back-to-back counting is a mistake | Anyone can count anytime |
-| Bench count deleters & editors | **On** | Changing your latest number benches you until the next reset. Likely self-deletes can also bench you with **View Audit Log**. | Sum reposts the count |
-| Math mode | **On** | `1+1`, `2x3`, `8/2` … count | Only plain numbers count |
+| Bench after edits or deletes | **On** | A text edit or deletion of the latest accepted count benches its author until the next reset, including moderator and bulk deletes | Sum reposts the count and play continues |
+| Math mode | **On** | Expressions like `1,5+0,5`, `2x3` and `8/2` count | Sum reads only the leading number |
 | Saves | **On** | A save absorbs a mistake (1 to start, +1 every 200, max 3) | Every mistake counts |
 | Strict channel | **Off** | Messages that aren't counts are deleted | Chatter is allowed |
 

@@ -3,20 +3,21 @@
 Everyone in the counting channel counts up together, one number per message. The count starts at **0**, so the first message is **1**.
 
 ```
-Alex:  1
-Sam:   2
-Alex:  1+2        ← math counts
+Alex:  1️⃣
+Sam:   1,5+0,5    ← decimal math counts as 2
+Alex:  1+2
 Robin: 4
 Sam:   5 let's go ← extra text after the number is fine
 ```
 
 ## What counts as a count?
 
-- The message has to **start** with the number or the sum. Anything after it is ignored, so `42 almost there` counts as 42.
+- **Start** the message with the number or expression. You can add text after it, so `42 almost there` counts as 42.
+- Use digits or number emoji from 0️⃣ to 9️⃣, plus 🔟 for 10. Adjacent digits combine, so 1️⃣2️⃣ counts as 12.
 - **Math mode** (on by default) supports `+`, `-`, `*`, `x`, `×`, `/`, `÷` and parentheses. `2x3`, `12/4`, `(10-1)*2` all work.
-- The result must be a whole number. `3/2` is a wrong count, not chatter.
-- `1.5`, `1,000` and similar are wrong counts.
-- Messages that don't start with a number or `(` are chatter. Sum ignores them, or deletes them if the server has **strict channel** turned on.
+- Decimals use `.` or `,` with up to two digits after the separator. Write `0.5` with the leading zero. `1,5+0,5` and `1.05+0.95` both count as 2. With Math mode off, a single number such as `2,00` still works.
+- The result must be the next whole number. `1.5` and `3/2` are wrong counts. Use `1000` for a thousand.
+- Sum treats other messages as chatter. It ignores chatter, or deletes it in **Strict channel** mode.
 
 ## Reactions
 
@@ -53,13 +54,9 @@ Run `/sum` to see how many saves you have and when the next one arrives.
 
 ## 🕵️ Deleted & edited counts
 
-Deleting or editing your count to confuse people won't work.
-
-- If the **latest** count is deleted, or edited so it shows a different number, Sum reposts it and tells everyone the next number.
-- If you edit your latest count to a different number and the rule is enabled, you are **benched until the next reset**. Your counts are removed (or marked ⛔) until the run ends.
-- If Sum has **View Audit Log**, it can also bench likely self-deletes after checking for moderation activity.
-- Adding text to your count without changing the number (`42` → `42 woo`) is fine.
-- Bulk deletions, matching moderator deletions, and deletions Sum cannot check are reposted without a penalty.
+- If the **latest** accepted count is deleted or its text is edited, Sum reposts the number and tells everyone what comes next. Adding text (`42` → `42 woo`) counts as an edit.
+- With **Bench after edits or deletes** enabled, the count's author is **benched until the next reset**, including after a moderator or bulk deletion. Their count attempts are removed or marked ⛔.
+- An admin can switch the rule off under **Settings → Rules** for reposts without benching.
 
 ## 🏆 High scores & milestones
 

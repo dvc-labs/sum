@@ -36,6 +36,6 @@ The rules as they're currently set on **this** server.
 Only visible to Sum admins. See the [Admin guide](admin-guide.md).
 
 - **📍 Channels & admins:** counting channel, log channel, extra admin roles
-- **📜 Rules** covers wrong numbers, double-counting, benching count deleters and editors, math mode, saves and strict channel
+- **📜 Rules** covers wrong numbers, double-counting, benching after edits and deletes, math mode, saves and strict channel
 - **🎭 Ruined role:** role, duration, on/off
 - **🧨 Danger zone:** reset the count, or wipe all server data

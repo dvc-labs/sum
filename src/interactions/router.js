@@ -14,7 +14,6 @@ import {
   settingsView,
 } from '../ui/panel.js';
 import { canManageRole, canUseChannel, configIssues, isSumAdmin, ruinedRoleIssue } from '../services/permissions.js';
-import { canReadDeleteAudit } from '../services/delete-audit.js';
 import { logEvent } from '../services/notify.js';
 import { reportError } from '../services/errors.js';
 import { sweepTempRoles } from '../services/roles.js';
@@ -23,7 +22,7 @@ import { writeIfLeader } from '../services/leader.js';
 const SETTING_LABELS = {
   rule_wrong_number: 'Wrong number ends the run',
   rule_double_count: 'No counting twice in a row',
-  rule_edit_delete: 'Bench count deleters & editors',
+  rule_edit_delete: 'Bench after edits or deletes',
   math_enabled: 'Math mode',
   saves_enabled: 'Saves',
   strict_mode: 'Strict channel',
@@ -44,7 +43,6 @@ function context(app, interaction) {
     isAdmin,
     countChannel,
     canViewGame: canUseChannel(interaction, countChannel, PermissionFlagsBits.ReadMessageHistory),
-    canCheckDeletes: canReadDeleteAudit(interaction.guild),
     issues: isAdmin ? configIssues(interaction.guild, guild) : [],
   };
 }

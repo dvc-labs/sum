@@ -10,7 +10,7 @@ Discord delivers messages from channels Sum can see. Sum evaluates counts only i
 
 After a restart or a fresh connection, Sum can read the configured counting channel’s history to recover missed count attempts.
 
-If an admin grants **View Audit Log** and enables benching, Sum checks message-deletion audit entries to distinguish likely self-deletes from moderation. It uses a bounded in-memory cache of entry IDs and counts for the comparison. It stores the resulting game bench in the database, without copying the audit entries there.
+If Sum has **View Audit Log** when it joins a server, it can read recent bot-add entries to find the installer and send a welcome DM.
 
 ## What Sum stores
 

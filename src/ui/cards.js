@@ -10,7 +10,8 @@ export function kickoffCard(guild) {
     title: `${e('sum')} Sum is live in this channel!`,
     body: [
       `Count up together, one number per message. Next up is **${fmt((guild?.current_count ?? 0) + 1)}**.`,
-      (guild?.math_enabled ?? true) ? 'Math works too: `1+1`, `2x2`, `10/2`.' : 'Use plain numbers to count.',
+      'Digits and number emoji both work, like 1️⃣ or 🔟.',
+      (guild?.math_enabled ?? true) ? 'Math works too. For example, `1,5+0,5` counts as **2**.' : null,
       (guild?.rule_double_count ?? true) ? 'Don’t count twice in a row.' : null,
       'Run `/sum` for stats, leaderboards and the rules.',
     ].filter(Boolean).join('\n'),

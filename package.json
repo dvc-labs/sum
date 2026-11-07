@@ -1,6 +1,6 @@
 {
   "name": "sum",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Sum — a classic counting game for Discord servers.",
   "type": "module",
