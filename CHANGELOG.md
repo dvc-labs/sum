@@ -2,7 +2,7 @@
 
 All notable changes to Sum are listed here. Versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.1.3] — 2026-11-07
 
 - Recover missed count attempts from Discord history after downtime or a writer handoff.
 
