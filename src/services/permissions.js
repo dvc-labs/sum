@@ -72,3 +72,13 @@ export function configIssues(guild, guildRow) {
   }
   return issues;
 }
+
+/** Why Sum's colour role isn't in place, for the Settings → Roles tab. Null when all is well or switched off. */
+export function brandRoleIssue(guild, guildRow) {
+  if (!guild || !guildRow.brand_role_enabled || guildRow.brand_role_id) return null;
+  const me = guild.members.me;
+  if (me && !me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+    return 'Sum needs **Manage Roles** to add its colour role.';
+  }
+  return 'Sum\u2019s colour role isn\u2019t in place yet. It will try again on the next restart.';
+}

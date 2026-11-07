@@ -3,6 +3,7 @@ import { v2, ACCENT } from '../ui/kit.js';
 import { welcomeDm } from '../ui/cards.js';
 import { logEvent, warnOwner } from '../services/notify.js';
 import { logger } from '../services/logger.js';
+import { syncBrandRole } from '../services/brand.js';
 
 /**
  * Who to thank? Discord doesn't tell bots who added them. If Sum can read the
@@ -27,6 +28,9 @@ export async function onGuildCreate(app, guild) {
   const { guild: row, created } = store.ensureGuild(guild.id);
   if (row.left_at) store.updateGuild(guild.id, { left_at: null, joined_at: Date.now() });
   logger.info({ guildId: guild.id, members: guild.memberCount, created }, 'joined guild');
+
+  // Give Sum its brand colour (best effort; silently skipped without Manage Roles).
+  await app.queue.run(guild.id, () => syncBrandRole(client, store, guild.id));
 
   if (row.welcomed) return; // only the very first install gets a thank-you
   store.updateGuild(guild.id, { welcomed: 1 });
@@ -72,6 +76,11 @@ export function onRoleDelete(app, role) {
   if (row.ruined_role_id === role.id) {
     patch.ruined_role_id = null;
     patch.ruined_role_enabled = 0;
+  }
+  if (row.brand_role_id === role.id) {
+    // Deleted by an admin (or by Sum itself when switching it off): don't bring it back.
+    patch.brand_role_id = null;
+    patch.brand_role_enabled = 0;
   }
   if (row.admin_role_ids.includes(role.id)) {
     patch.admin_role_ids = row.admin_role_ids.filter((r) => r !== role.id);

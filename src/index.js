@@ -13,6 +13,7 @@ import { sweepTempRoles } from './services/roles.js';
 import { initErrorReporting, reportError } from './services/errors.js';
 import { Leader } from './services/leader.js';
 import { detectEmoji } from './ui/emoji.js';
+import { reconcileBrandRoles } from './services/brand.js';
 import { logger } from './services/logger.js';
 
 process.umask(0o077); // data files are readable by the bot user only
@@ -132,6 +133,7 @@ client.once(Events.ClientReady, async (c) => {
   }
   await detectEmoji(client).catch((err) => reportError(err, { where: 'detectEmoji' }));
   if (leader.isLeader()) await reconcileGuilds().catch((err) => reportError(err, { where: 'reconcile' }));
+  if (leader.isLeader()) await reconcileBrandRoles(client, store).catch((err) => reportError(err, { where: 'brandRoles' }));
   scheduleMaintenance();
 });
 

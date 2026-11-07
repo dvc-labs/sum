@@ -89,6 +89,12 @@ export const MIGRATIONS = [
     heartbeat_at INTEGER NOT NULL
   ) STRICT;
   `,
+
+  // v2 — Sum's own colour role (v0.1.1). Additive: older code simply ignores the columns.
+  `
+  ALTER TABLE guilds ADD COLUMN brand_role_enabled INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE guilds ADD COLUMN brand_role_id TEXT;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

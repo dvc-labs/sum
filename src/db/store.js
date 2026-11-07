@@ -28,6 +28,8 @@ const GUILD_COLUMNS = new Set([
   'ruined_role_enabled',
   'ruined_role_id',
   'ruined_role_minutes',
+  'brand_role_enabled',
+  'brand_role_id',
   'welcomed',
   'owner_warned_at',
   'joined_at',
@@ -42,6 +44,7 @@ export const BOOLEAN_SETTINGS = [
   'strict_mode',
   'saves_enabled',
   'ruined_role_enabled',
+  'brand_role_enabled',
 ];
 
 export const LEADERBOARD_CATEGORIES = {
@@ -233,9 +236,12 @@ export class Store {
   /** Admin "wipe": removes every stat for the server and restores default settings. */
   wipeGuild(guildId, now = Date.now()) {
     return this.transaction(() => {
+      const old = this.getGuild(guildId);
       this.stmt.deleteGuild.run(guildId);
       this.ensureGuild(guildId, now);
-      return this.updateGuild(guildId, { welcomed: 1 }, now);
+      // The colour role still exists in Discord: keep tracking it so it isn't orphaned or duplicated.
+      const keep = old ? { brand_role_enabled: old.brand_role_enabled, brand_role_id: old.brand_role_id } : {};
+      return this.updateGuild(guildId, { welcomed: 1, ...keep }, now);
     });
   }
 

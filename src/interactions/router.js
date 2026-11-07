@@ -12,7 +12,8 @@ import {
   playerView,
   settingsView,
 } from '../ui/panel.js';
-import { configIssues, isSumAdmin } from '../services/permissions.js';
+import { brandRoleIssue, configIssues, isSumAdmin } from '../services/permissions.js';
+import { syncBrandRole } from '../services/brand.js';
 import { logEvent } from '../services/notify.js';
 import { reportError } from '../services/errors.js';
 import { releaseAllRuinedRoles } from '../services/roles.js';
@@ -25,6 +26,7 @@ const SETTING_LABELS = {
   saves_enabled: 'Saves',
   strict_mode: 'Strict channel',
   ruined_role_enabled: 'Ruined role',
+  brand_role_enabled: 'Sum colour role',
 };
 
 function context(app, interaction) {
@@ -36,12 +38,14 @@ function context(app, interaction) {
     userId: interaction.user.id,
     isAdmin: isSumAdmin(interaction, guild),
     issues: configIssues(interaction.guild, guild),
+    brandIssue: brandRoleIssue(interaction.guild, guild),
   };
 }
 
 function refresh(ctx, interaction) {
   ctx.guild = ctx.store.getGuild(ctx.guild.guild_id);
   ctx.issues = configIssues(interaction.guild, ctx.guild);
+  ctx.brandIssue = brandRoleIssue(interaction.guild, ctx.guild);
   return ctx;
 }
 
@@ -214,8 +218,18 @@ async function onToggle(app, interaction, ctx, key, tab, show) {
   const next = ctx.guild[key] ? 0 : 1;
   if (key === 'ruined_role_enabled' && next && !ctx.guild.ruined_role_id) return show(settingsView(ctx, 'role'));
   app.store.updateGuild(ctx.guild.guild_id, { [key]: next });
-  refresh(ctx, interaction);
-  await show(settingsView(ctx, tab));
+  if (key === 'brand_role_enabled') {
+    // Creating or deleting a role is a Discord API call: acknowledge first, then edit the panel.
+    await interaction.deferUpdate();
+    await app.queue.run(ctx.guild.guild_id, () =>
+      syncBrandRole(app.client, app.store, ctx.guild.guild_id, { by: interaction.user.username }),
+    );
+    refresh(ctx, interaction);
+    await interaction.editReply(v2update(settingsView(ctx, tab)));
+  } else {
+    refresh(ctx, interaction);
+    await show(settingsView(ctx, tab));
+  }
   await logEvent(app.client, ctx.guild, '⚙️ Rule changed', [
     `**${SETTING_LABELS[key]}** turned **${next ? 'on' : 'off'}** by <@${interaction.user.id}>.`,
   ]);

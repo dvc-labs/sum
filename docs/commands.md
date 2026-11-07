@@ -37,5 +37,5 @@ Only visible to Sum admins. See the [Admin guide](admin-guide.md).
 
 - **📍 Channels & admins:** counting channel, log channel, extra admin roles
 - **📜 Rules:** wrong-number rule, double-count rule, benching for deleted/edited counts, math mode, saves, strict channel
-- **🎭 Ruined role:** role, duration, on/off
+- **🎭 Roles:** Sum's colour role on/off, ruined role, its duration and on/off
 - **🧨 Danger zone:** reset the count, or wipe all server data

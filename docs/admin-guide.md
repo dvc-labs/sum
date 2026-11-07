@@ -32,7 +32,7 @@ The invite link asks for these permissions:
 | Add Reactions | ✅ ❌ 🛟 and friends |
 | Embed Links | Rich messages and link previews |
 | Manage Messages | *Only for strict channel and benching:* delete chatter and benched players' counts |
-| Manage Roles | *Only for the ruined role:* add and remove it |
+| Manage Roles | *Only for roles:* Sum's own colour role and the optional ruined role |
 
 If Sum is missing something, the panel shows a ⚠️ warning. Sum also posts the problem in the log channel and DMs the server owner, at most once a day.
 
@@ -49,7 +49,19 @@ If Sum is missing something, the panel shows a ⚠️ warning. Sum also posts th
 
 Changes apply immediately and are logged with who made them.
 
-## Ruined role (⚙️ Settings → 🎭 Ruined role)
+## Roles (⚙️ Settings → 🎭 Roles)
+
+### Sum colour role
+
+Sum gives itself an orange name colour (`#FF4500`) in the member list. Discord doesn't let bots recolour their own role, so Sum creates a small role called **Sum colour** and wears it.
+
+- The role has **no permissions**, isn't shown separately in the member list, and can't be mentioned.
+- Sum adds it when it joins, if it has **Manage Roles**. Without that permission it simply doesn't.
+- It's **on by default**. Switch it **Off** and Sum deletes the role.
+- If you recolour or reposition the role, Sum leaves it alone. If you delete it, Sum treats that as "off" and won't bring it back.
+- If you remove Sum from your server, the role is **left behind**, because Sum can't clean up after it has left. Delete it manually (Server Settings → Roles). Re-inviting Sum reuses it.
+
+### Ruined role
 
 1. Create a role, for example **@Ruined It**.
 2. In **Server Settings → Roles**, drag **Sum's role above it**. Discord only lets a bot assign roles that sit below its own.
@@ -81,4 +93,4 @@ The game pauses. Nothing is lost: the count, the high score and all stats are ke
 
 ## Removing Sum
 
-Kick Sum like any other bot. Your server's data is kept for **30 days** in case you change your mind, then deleted permanently. To delete it right away, use **Wipe server data** first.
+Kick Sum like any other bot, then delete the leftover **Sum colour** role if you don't want it (see above). Your server's data is kept for **30 days** in case you change your mind, then deleted permanently. To delete it right away, use **Wipe server data** first.
