@@ -1,19 +1,19 @@
-import { ActivityType, Client, Events, GatewayIntentBits, Options, Partials } from 'discord.js';
+import { ActivityType, Client, Events, GatewayIntentBits, Options, Partials, Status } from 'discord.js';
 import { BRAND, GAME, loadConfig } from './config.js';
 import { openDatabase } from './db/index.js';
 import { Store } from './db/store.js';
 import { KeyedQueue } from './game/queue.js';
 import { onMessageCreate, onMessageDelete, onMessageDeleteBulk, onMessageUpdate } from './game/handler.js';
-import { onChannelDelete, onGuildCreate, onGuildDelete, onRoleDelete } from './events/guilds.js';
+import { onChannelDelete, onGuildCreate, onGuildDelete, onRoleDelete, reconcileGuilds } from './events/guilds.js';
 import { onInteraction } from './interactions/router.js';
 import { registerCommands } from './commands/register.js';
-import { runBackup } from './services/backup.js';
+import { pruneBackups, runBackup } from './services/backup.js';
 import { startHealthServer } from './services/health.js';
 import { sweepTempRoles } from './services/roles.js';
 import { initErrorReporting, reportError } from './services/errors.js';
 import { Leader } from './services/leader.js';
 import { detectEmoji } from './ui/emoji.js';
-import { logger } from './services/logger.js';
+import { errorDetails, logger } from './services/logger.js';
 
 process.umask(0o077); // data files are readable by the bot user only
 
@@ -23,8 +23,9 @@ initErrorReporting(config.errorWebhookUrl);
 const db = openDatabase(config.dbPath);
 const store = new Store(db);
 const queue = new KeyedQueue();
+const effects = new KeyedQueue({ maxPerKey: 64, maxTotal: 512 });
+const roleQueue = new KeyedQueue();
 const leader = new Leader(db);
-leader.start(); // newest container wins; an older one still running goes on standby
 
 const client = new Client({
   intents: [
@@ -43,13 +44,26 @@ const client = new Client({
   allowedMentions: { parse: [] },
 });
 
-const app = { client, store, queue, config, leader };
+const app = { client, store, queue, effects, roleQueue, config, leader };
 const timers = [];
+const jobs = new Set();
+let shuttingDown = false;
+
+const gatewayReady = () => client.isReady() && client.ws.shards.every((shard) => shard.status === Status.Ready);
+
+function refreshLease() {
+  if (shuttingDown || !leader.timer || !gatewayReady()) return;
+  try {
+    leader.tick();
+  } catch (err) {
+    reportError(err, { where: 'gateway lease refresh' });
+  }
+}
 
 /** Wraps event handlers: standby instances ignore events, and one bad event never kills the process. */
 const guard = (where, fn) => async (...args) => {
-  if (!leader.isLeader()) return;
   try {
+    if (shuttingDown || !leader.isLeader()) return;
     await fn(app, ...args);
   } catch (err) {
     reportError(err, { where });
@@ -62,12 +76,17 @@ client.on(Events.MessageBulkDelete, guard('messageDeleteBulk', onMessageDeleteBu
 client.on(Events.MessageUpdate, guard('messageUpdate', onMessageUpdate));
 client.on(Events.InteractionCreate, guard('interaction', onInteraction));
 client.on(Events.GuildCreate, guard('guildCreate', onGuildCreate));
+client.on(Events.GuildAvailable, guard('guildAvailable', onGuildCreate));
 client.on(Events.GuildDelete, guard('guildDelete', onGuildDelete));
 client.on(Events.ChannelDelete, guard('channelDelete', onChannelDelete));
 client.on(Events.GuildRoleDelete, guard('roleDelete', onRoleDelete));
 client.on(Events.Error, (err) => reportError(err, { where: 'client' }));
 client.on(Events.ShardDisconnect, () => logger.warn('gateway disconnected'));
-client.on(Events.ShardResume, () => logger.info('gateway resumed'));
+client.on(Events.ShardResume, () => {
+  logger.info('gateway resumed');
+  refreshLease();
+});
+client.on(Events.ShardReady, refreshLease);
 
 function updatePresence() {
   const n = client.guilds.cache.size;
@@ -78,80 +97,72 @@ function updatePresence() {
   });
 }
 
-/** Reconcile servers joined/left while the bot was offline. */
-async function reconcileGuilds() {
-  const present = new Set(client.guilds.cache.keys());
-  for (const guild of client.guilds.cache.values()) {
-    const before = store.getGuild(guild.id);
-    if (!before || !before.welcomed) await onGuildCreate(app, guild);
-    else if (before.left_at) store.updateGuild(guild.id, { left_at: null });
-  }
-  for (const id of store.activeGuildIds()) {
-    if (!present.has(id)) store.markLeft(id);
-  }
+function scheduleJob(where, intervalMs, task) {
+  let pending;
+  const run = () => {
+    if (pending || shuttingDown || !gatewayReady() || !leader.isLeader()) return;
+    pending = Promise.resolve().then(task).catch((err) => reportError(err, { where })).finally(() => {
+      jobs.delete(pending);
+      pending = null;
+    });
+    jobs.add(pending);
+  };
+  timers.push(setInterval(run, intervalMs));
+  run();
 }
 
 function scheduleMaintenance() {
-  // Expired ruined roles — every minute.
-  timers.push(
-    setInterval(() => {
-      if (leader.isLeader()) sweepTempRoles(client, store).catch((e) => reportError(e, { where: 'sweep' }));
-    }, 60_000),
-  );
-
-  // Hourly: presence, data retention purge, daily backup window.
+  scheduleJob('role expiry', 60_000, () => sweepTempRoles(app));
   let lastBackupDay = null;
-  const hourly = async () => {
-    if (!leader.isLeader()) return;
-    try {
-      updatePresence();
-      const cutoff = Date.now() - GAME.dataRetentionDays * 86_400_000;
-      const purged = store.purgeLeftBefore(cutoff);
-      if (purged) logger.info({ purged }, 'purged data of servers that removed Sum');
+  scheduleJob('maintenance', 3_600_000, async () => {
+    const now = new Date();
+    updatePresence();
+    const purged = leader.write(() => {
+      store.purgeProcessedCounts(now.getTime() - GAME.countReplayHours * 3_600_000);
+      return store.purgeLeftBefore(now.getTime() - GAME.dataRetentionDays * 86_400_000);
+    });
+    if (purged) logger.info({ purged }, 'purged data of servers that removed Sum');
+    await pruneBackups(config.backupDir, config.backupKeep, now.getTime());
 
-      const now = new Date();
-      const day = now.toISOString().slice(0, 10);
-      if (now.getUTCHours() === config.backupHourUtc && lastBackupDay !== day) {
-        lastBackupDay = day;
-        await runBackup(db, { backupDir: config.backupDir, keep: config.backupKeep, r2: config.r2 });
-      }
-    } catch (err) {
-      reportError(err, { where: 'maintenance' });
+    const day = now.toISOString().slice(0, 10);
+    if (leader.isLeader() && now.getUTCHours() === config.backupHourUtc && lastBackupDay !== day) {
+      await runBackup(db, { backupDir: config.backupDir, keep: config.backupKeep, r2: config.r2 });
+      lastBackupDay = day;
     }
-  };
-  timers.push(setInterval(hourly, 3_600_000));
-  hourly();
+  });
 }
 
 client.once(Events.ClientReady, async (c) => {
   logger.info({ user: c.user.tag, guilds: c.guilds.cache.size, version: BRAND.version }, 'Sum is online');
+  if (shuttingDown) return;
+  leader.start(gatewayReady, () => {
+    reconcileGuilds(app).catch((err) => reportError(err, { where: 'guild reconciliation' }));
+  });
+  scheduleMaintenance();
   try {
-    if (config.registerCommands) await registerCommands(config);
+    if (config.registerCommands && leader.isLeader()) await registerCommands(config);
   } catch (err) {
     reportError(err, { where: 'registerCommands' });
   }
   await detectEmoji(client).catch((err) => reportError(err, { where: 'detectEmoji' }));
-  if (leader.isLeader()) await reconcileGuilds().catch((err) => reportError(err, { where: 'reconcile' }));
-  scheduleMaintenance();
 });
 
-const health = startHealthServer({ port: config.healthPort, client, db, leader });
+const health = startHealthServer({ port: config.healthPort, gatewayReady, db, leader });
 
-let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info({ signal }, 'shutting down');
   timers.forEach(clearInterval);
-  await Promise.race([queue.drain(), new Promise((r) => setTimeout(r, 5_000))]);
+  const drained = queue.drain().then(() => Promise.allSettled([effects.drain(), roleQueue.drain(), ...jobs]));
+  await Promise.race([drained, new Promise((r) => setTimeout(r, 5_000))]);
   leader.stop(); // hand over immediately instead of waiting for the stale window
   await client.destroy().catch(() => {});
   health.close();
   try {
-    db.pragma('wal_checkpoint(TRUNCATE)');
     db.close();
   } catch (err) {
-    logger.error({ err }, 'error closing database');
+    logger.error({ error: errorDetails(err) }, 'error closing database');
   }
   process.exit(0);
 }
@@ -165,6 +176,6 @@ process.on('uncaughtException', (err) => {
 });
 
 client.login(config.token).catch((err) => {
-  logger.fatal({ err: err.message }, 'login failed — check DISCORD_TOKEN and the Message Content intent');
+  logger.fatal({ error: errorDetails(err) }, 'login failed — check DISCORD_TOKEN and the Message Content intent');
   process.exit(1);
 });

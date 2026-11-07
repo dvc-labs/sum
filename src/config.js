@@ -48,9 +48,6 @@ export const INVITE_PERMISSIONS = [
   'SendMessages',
   'ReadMessageHistory',
   'AddReactions',
-  'EmbedLinks',
-  'ManageMessages',
-  'ManageRoles',
 ];
 
 /** Game tuning constants. */
@@ -64,6 +61,8 @@ export const GAME = Object.freeze({
   leaderboardPageSize: 10,
   accuracyMinCounts: 20,
   dataRetentionDays: 30, // after the bot is removed from a server
+  backupRetentionDays: 7,
+  countReplayHours: 24,
   ownerWarnCooldownHours: 24,
   ruinedRoleDefaultMinutes: 60,
 });

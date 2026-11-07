@@ -30,9 +30,10 @@ The invite link asks for these permissions:
 | Send Messages | Post milestones, records and notices |
 | Read Message History | Follow the count |
 | Add Reactions | ✅ ❌ 🛟 and friends |
-| Embed Links | Rich messages and link previews |
-| Manage Messages | *Only for strict channel and benching:* delete chatter and benched players' counts |
-| Manage Roles | *Only for the ruined role:* add and remove it |
+
+Grant **Manage Messages** to Sum in the counting channel if you want it to delete chatter in strict mode or remove benched players’ attempts. A Sum admin who enables message deletion or moves the game to a channel where Sum will delete messages also needs Discord’s **Manage Messages** permission there.
+
+Grant **Manage Roles** to Sum only if you use the optional ruined role. For existing installs, review these permissions on Sum’s Discord role and channel overrides.
 
 If Sum is missing something, the panel shows a ⚠️ warning. Sum also posts the problem in the log channel and DMs the server owner, at most once a day.
 
@@ -42,7 +43,7 @@ If Sum is missing something, the panel shows a ⚠️ warning. Sum also posts th
 |---|---|---|---|
 | Wrong number ends the run | **On** | Resets the count to 0 (unless a save is used) | Wrong numbers get ❌, the run continues |
 | No counting twice in a row | **On** | Back-to-back counting is a mistake | Anyone can count anytime |
-| Bench count deleters & editors | **On** | Deleting or editing your latest count benches you until the next reset | Sum only reposts the count |
+| Bench count editors | **On** | Changing the number in your latest count benches you until the next reset | Sum reposts the count |
 | Math mode | **On** | `1+1`, `2x3`, `8/2` … count | Only plain numbers count |
 | Saves | **On** | A save absorbs a mistake (1 to start, +1 every 200, max 3) | Every mistake counts |
 | Strict channel | **Off** | Messages that aren't counts are deleted | Chatter is allowed |
@@ -51,11 +52,11 @@ Changes apply immediately and are logged with who made them.
 
 ## Ruined role (⚙️ Settings → 🎭 Ruined role)
 
-1. Create a role, for example **@Ruined It**.
+1. Create a dedicated role, for example **@Ruined It**, with no server permissions or channel permission grants. Keep it separate from Sum admin roles.
 2. In **Server Settings → Roles**, drag **Sum's role above it**. Discord only lets a bot assign roles that sit below its own.
-3. Pick the role and a duration (15 minutes to 24 hours), then switch it **On**.
+3. As the server owner or a Sum admin with **Manage Roles** and a role above it, pick the role and duration (15 minutes to 24 hours), then switch it **On**.
 
-Sum removes the role when the time is up, even if it restarts in the meantime.
+Sum removes its own grants when the time is up, even after a restart. If Discord blocks removal, restore Sum’s access so it can retry.
 
 ## Log channel
 
@@ -68,12 +69,12 @@ Sum logs:
 - ⚙️ every settings change and who made it
 - ⚠️ permission problems
 
-To turn logging off, clear the log channel picker.
+Choose a log channel whose members may see the game activity it receives. To select it, you need access to the counting channel and permission to post in the log channel. Clear the picker to turn logging off.
 
 ## Danger zone
 
 - **Reset count:** sets the count to 0 without blaming anyone. The high score, saves and player stats stay.
-- **Wipe server data:** deletes every player stat, the high score and all settings for this server. **This can't be undone.**
+- **Wipe server data** deletes live player stats, the high score and settings. Sum also queues cleanup for roles it granted. Older backups expire separately.
 
 ## If the counting channel is deleted
 
@@ -81,4 +82,11 @@ The game pauses. Nothing is lost: the count, the high score and all stats are ke
 
 ## Removing Sum
 
-Kick Sum like any other bot. Your server's data is kept for **30 days** in case you change your mind, then deleted permanently. To delete it right away, use **Wipe server data** first.
+Kick Sum like any other bot. Its live game data is kept for **30 days** in case you change your mind. Use **Wipe server data** first to clear it immediately and give Sum a chance to take back temporary roles before losing access.
+
+## Self-hosting and Coolify
+
+- Mount a persistent volume at `/data` (owned by UID 1000). The first upgrade from v0.1.1 or earlier changes the SQLite schema. Back up the database and stop the old container before starting the upgraded one. Keep the pre-upgrade backup if you need to roll back to the older binary. Future overlapping containers must share the same database file.
+- Keep the health port internal. `/healthz` checks the gateway and database. `/readyz` also checks that the instance owns the writer lease.
+- In the Discord Developer Portal, set Guild Install scopes to `bot` and `applications.commands` and use the four default permissions above. Enable Message Content for counting. Server Members and Presence can stay off.
+- Sum prunes local snapshots by age and by `BACKUP_KEEP`. If you enable R2, give its token object read/write access only to the backup bucket. Set an [R2 lifecycle rule](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) to expire objects under `R2_PREFIX` (default `sum/`) after seven days, including when Sum is offline.

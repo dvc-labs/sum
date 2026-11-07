@@ -1,9 +1,11 @@
 import { PermissionFlagsBits } from 'discord.js';
+import { GAME } from '../config.js';
 import { parseCount } from './parser.js';
 import { applyOutcome, evaluate } from './engine.js';
 import { v2, ACCENT, fmt, user } from '../ui/kit.js';
 import {
   milestoneCard,
+  mistakeReason,
   recordCard,
   ruinedCard,
   saveEarnedCard,
@@ -13,6 +15,7 @@ import {
 import { logEvent, warnOwner } from '../services/notify.js';
 import { assignRuinedRole } from '../services/roles.js';
 import { isPermissionError, reportError } from '../services/errors.js';
+import { writeIfLeader } from '../services/leader.js';
 import { reactWith } from '../ui/emoji.js';
 
 /**
@@ -29,12 +32,27 @@ const EMOJI = {
   benched: '⛔',
 };
 
-/** Returns the guild row if this message belongs to an active counting channel. */
-function countingGuild(store, message) {
-  if (!message.guildId) return null;
-  const row = store.getGuild(message.guildId);
-  if (!row || row.left_at || row.count_channel_id !== message.channelId) return null;
-  return row;
+function inCountingChannel(app, guildId, channelId, update) {
+  if (!guildId || !app.store.isCountingChannel(guildId, channelId)) return;
+  return app.queue.run(guildId, () => {
+    const afterCommit = writeIfLeader(app, () => {
+      const guild = app.store.getGuild(guildId);
+      if (!guild || guild.left_at || guild.count_channel_id !== channelId) return;
+      return update(guild);
+    });
+    // The state queue waits for the commit. Discord REST work has its own queue.
+    return { effects: afterCommit?.() };
+  }).then(({ effects }) => effects);
+}
+
+function countEffects(app, guild, task, options) {
+  return app.effects.run(guild.guild_id, () => {
+    if (app.leader && !app.leader.isLeader()) return;
+    const current = app.store.getGuild(guild.guild_id);
+    if (!current || current.left_at || current.created_at !== guild.created_at ||
+        current.count_channel_id !== guild.count_channel_id) return;
+    return task(current);
+  }, options);
 }
 
 /** Wraps a Discord call: permission failures alert the owner (rate-limited) instead of crashing. */
@@ -47,8 +65,12 @@ async function safely(app, guildRow, what, fn) {
         `Sum couldn’t **${what}** in <#${guildRow.count_channel_id}>.`,
         'Check the channel permissions: View Channel, Send Messages, Read Message History and Add Reactions (plus Manage Messages for strict mode).',
       ];
-      await logEvent(app.client, guildRow, '⚠️ Missing permissions', lines, ACCENT.warning);
-      await warnOwner(app.client, app.store, app.store.getGuild(guildRow.guild_id), 'Sum is missing permissions', lines);
+      const current = app.store.getGuild(guildRow.guild_id);
+      if (current && (!current.owner_warned_at ||
+          Date.now() - current.owner_warned_at >= GAME.ownerWarnCooldownHours * 3_600_000)) {
+        await warnOwner(app, current, 'Sum is missing permissions', lines);
+        await logEvent(app.client, current, '⚠️ Missing permissions', lines, ACCENT.warning);
+      }
     } else if (err?.code !== 10008) {
       // 10008 = Unknown Message (already deleted) — harmless.
       reportError(err, { where: what, guildId: guildRow.guild_id });
@@ -58,30 +80,29 @@ async function safely(app, guildRow, what, fn) {
 }
 
 function canManageMessages(message) {
-  return message.channel.permissionsFor(message.guild.members.me)?.has(PermissionFlagsBits.ManageMessages);
+  return message.channel?.permissionsFor(message.guild?.members.me)?.has(PermissionFlagsBits.ManageMessages);
 }
 
 /* ───────────────────────────── New messages ───────────────────────────── */
 
 export function onMessageCreate(app, message) {
-  if (message.author?.bot || message.system || message.webhookId) return;
-  const row = countingGuild(app.store, message);
-  if (!row) return;
-  return app.queue.run(row.guild_id, () => processCount(app, message));
+  if (!message.author || message.author.bot || message.system || message.webhookId) return;
+  const { content } = message; // Discord.js can mutate a cached Message on edit
+  return inCountingChannel(app, message.guildId, message.channelId, (guild) => processCount(app, guild, message, content));
 }
 
-async function processCount(app, message) {
-  const { store, client } = app;
-  const guild = store.getGuild(message.guildId); // fresh read inside the queue
-  if (!guild || guild.count_channel_id !== message.channelId) return;
-
-  const parsed = parseCount(message.content, { allowMath: Boolean(guild.math_enabled) });
+function processCount(app, guild, message, content) {
+  const { store } = app;
+  const parsed = parseCount(content, { allowMath: Boolean(guild.math_enabled) });
   if (!parsed.attempt) {
-    if (guild.strict_mode && canManageMessages(message)) {
-      await safely(app, guild, 'delete a non-count message', () => message.delete());
-    }
-    return;
+    if (!guild.strict_mode || !canManageMessages(message)) return;
+    return () => countEffects(app, guild, (current) => {
+      if (current.strict_mode && canManageMessages(message)) {
+        return safely(app, current, 'delete a non-count message', () => message.delete());
+      }
+    }, { essential: true });
   }
+  if (!store.claimCount(guild.guild_id, message.id)) return;
 
   const disqualified = Boolean(guild.rule_edit_delete) && store.isDisqualified(guild.guild_id, message.author.id, guild.run_id);
   const outcome = evaluate(guild, { userId: message.author.id, parsed, disqualified });
@@ -90,6 +111,20 @@ async function processCount(app, message) {
     messageId: message.id,
     outcome,
   });
+  return () => {
+    const notification = countEffects(
+      app, updated, (current) => announceCount(app, message, guild, updated, outcome, current),
+      { essential: outcome.type === 'disqualified' && canManageMessages(message) },
+    );
+    const role = outcome.type === 'ruined' && updated.ruined_role_enabled
+      ? app.roleQueue.run(guild.guild_id, () => assignRuinedRole(app, updated, message.author.id))
+      : undefined;
+    return Promise.all([notification, role]);
+  };
+}
+
+async function announceCount(app, message, guild, updated, outcome, current) {
+  const { client } = app;
   const send = (container, what = 'send a message') =>
     safely(app, updated, what, () => message.channel.send(v2([container])));
   const react = (emoji) =>
@@ -97,6 +132,7 @@ async function processCount(app, message) {
 
   switch (outcome.type) {
     case 'disqualified':
+      if (!current.rule_edit_delete || current.run_id !== guild.run_id) return;
       if (canManageMessages(message)) await safely(app, guild, 'delete a message', () => message.delete());
       else await react(EMOJI.benched);
       return;
@@ -135,7 +171,7 @@ async function processCount(app, message) {
       await react(EMOJI.saved);
       await send(savedCard(outcome, message.author.id));
       await logEvent(client, updated, '🛟 Save used', [
-        `${user(message.author.id)} ${outcome.reason === 'double' ? 'counted twice in a row' : `typed \`${outcome.text}\` (expected ${fmt(outcome.expected)})`}.`,
+        `${user(message.author.id)} ${mistakeReason(outcome)}.`,
         `Saves left: **${outcome.savesLeft}**.`,
       ], ACCENT.warning);
       return;
@@ -145,12 +181,9 @@ async function processCount(app, message) {
       await send(ruinedCard(outcome, message.author.id, updated));
       await logEvent(client, updated, '💥 Run ruined', [
         `${user(message.author.id)} ended the run at **${fmt(outcome.ruinedAt)}**.`,
-        outcome.reason === 'double'
-          ? 'Reason: counted twice in a row.'
-          : `Reason: typed \`${outcome.text}\`, expected **${fmt(outcome.expected)}**.`,
+        `Reason: ${mistakeReason(outcome)}.`,
         `[Jump to message](${message.url})`,
       ], ACCENT.danger);
-      await assignRuinedRole(client, store, updated, message.author.id);
       return;
 
     default:
@@ -160,53 +193,45 @@ async function processCount(app, message) {
 /* ─────────────────────── Deleted & edited counts ─────────────────────── */
 
 export function onMessageDelete(app, message) {
-  const row = countingGuild(app.store, message);
-  if (!row || row.last_message_id !== message.id) return;
-  return app.queue.run(row.guild_id, () => handleTamper(app, message, 'delete', true));
+  return inCountingChannel(app, message.guildId, message.channelId, (guild) => {
+    if (guild.last_message_id === message.id) return handleTamper(app, guild, 'delete');
+  });
 }
 
 export function onMessageDeleteBulk(app, messages, channel) {
-  const row = app.store.getGuild(channel.guildId);
-  if (!row || row.left_at || row.count_channel_id !== channel.id) return;
-  if (!row.last_message_id || !messages.has(row.last_message_id)) return;
-  // A bulk delete is a moderator purge — repost the count, but don't bench anyone.
-  const msg = messages.get(row.last_message_id);
-  return app.queue.run(row.guild_id, () => handleTamper(app, msg, 'delete', false));
-}
-
-export async function onMessageUpdate(app, _old, updatedMessage) {
-  const row = countingGuild(app.store, updatedMessage);
-  if (!row || row.last_message_id !== updatedMessage.id) return;
-  let msg = updatedMessage;
-  if (msg.partial) {
-    msg = await msg.fetch().catch(() => null);
-    if (!msg) return;
-  }
-  const parsed = parseCount(msg.content, { allowMath: Boolean(row.math_enabled) });
-  if (parsed.attempt && parsed.value === row.current_count) return; // cosmetic edit, number unchanged
-  return app.queue.run(row.guild_id, () => handleTamper(app, msg, 'edit', true));
-}
-
-async function handleTamper(app, message, kind, mayBench) {
-  const { store, client } = app;
-  const guild = store.getGuild(message.guildId);
-  if (!guild || guild.last_message_id !== message.id) return; // already handled / run moved on
-  const userId = guild.last_user_id;
-  const bench = mayBench && Boolean(guild.rule_edit_delete) && Boolean(userId);
-
-  store.transaction(() => {
-    store.updateGuild(guild.guild_id, { last_message_id: null });
-    if (bench) store.disqualify(guild.guild_id, userId, guild.run_id, kind);
+  return inCountingChannel(app, channel.guildId, channel.id, (guild) => {
+    if (guild.last_message_id && messages.has(guild.last_message_id)) return handleTamper(app, guild, 'delete');
   });
+}
 
-  const channel = client.channels.cache.get(guild.count_channel_id);
-  if (channel?.isTextBased()) {
-    await safely(app, guild, 'send a message', () =>
-      channel.send(v2([tamperCard(kind, userId, guild.current_count, bench)])),
-    );
-  }
-  await logEvent(client, guild, kind === 'delete' ? '🕵️ Count deleted' : '🕵️ Count edited', [
-    `${user(userId)}’s count **${fmt(guild.current_count)}** was ${kind === 'delete' ? 'deleted' : 'edited'}.`,
-    bench ? 'They are benched until the next reset.' : mayBench ? null : 'Bulk delete — nobody benched.',
-  ], ACCENT.warning);
+export function onMessageUpdate(app, oldMessage, message) {
+  const { content, guildId, channelId, id } = message;
+  if (typeof content !== 'string' || oldMessage?.content === content) return;
+  return inCountingChannel(app, guildId, channelId, (guild) => {
+    if (guild.last_message_id !== id) return;
+    const parsed = parseCount(content, { allowMath: Boolean(guild.math_enabled) });
+    if (parsed.value !== guild.current_count) return handleTamper(app, guild, 'edit');
+  });
+}
+
+function handleTamper(app, guild, kind) {
+  const { store, client } = app;
+  const userId = guild.last_user_id;
+  // Both delete events identify the message, without identifying who deleted it.
+  const bench = kind === 'edit' && Boolean(guild.rule_edit_delete) && Boolean(userId);
+  store.updateGuild(guild.guild_id, { last_message_id: null });
+  if (bench) store.disqualify(guild.guild_id, userId, guild.run_id, kind);
+
+  return () => countEffects(app, guild, async () => {
+    const channel = client.channels.cache.get(guild.count_channel_id);
+    if (channel?.isTextBased()) {
+      await safely(app, guild, 'send a message', () =>
+        channel.send(v2([tamperCard(kind, userId, guild.current_count, bench)])),
+      );
+    }
+    await logEvent(client, guild, kind === 'delete' ? '🕵️ Count deleted' : '🕵️ Count edited', [
+      `${user(userId)}’s count **${fmt(guild.current_count)}** was ${kind === 'delete' ? 'deleted' : 'edited'}.`,
+      bench ? 'They are benched until the next reset.' : null,
+    ], ACCENT.warning);
+  }, { essential: true });
 }

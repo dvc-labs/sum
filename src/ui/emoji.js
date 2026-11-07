@@ -1,4 +1,4 @@
-import { logger } from '../services/logger.js';
+import { errorDetails, logger } from '../services/logger.js';
 
 /**
  * Sum's custom emoji. These are application emojis (Developer Portal → Emojis),
@@ -83,7 +83,7 @@ export async function detectEmoji(client) {
   try {
     app = await client.application.emojis.fetch();
   } catch (err) {
-    logger.warn({ err: err.message }, 'could not list application emojis — assuming custom emoji are available');
+    logger.warn({ error: errorDetails(err) }, 'could not list application emojis — assuming custom emoji are available');
     for (const key of Object.keys(EMOJI)) result[key] = 'unknown';
     return result;
   }

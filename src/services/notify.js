@@ -2,7 +2,8 @@ import { PermissionFlagsBits } from 'discord.js';
 import { GAME } from '../config.js';
 import { ACCENT, v2 } from '../ui/kit.js';
 import { logCard, ownerAlertDm } from '../ui/cards.js';
-import { logger } from './logger.js';
+import { errorDetails, logger } from './logger.js';
+import { writeIfLeader } from './leader.js';
 
 /**
  * Posts an event to the server's log channel, if one is configured and usable.
@@ -18,7 +19,7 @@ export async function logEvent(client, guildRow, title, lines, accent = ACCENT.b
     if (!perms?.has(PermissionFlagsBits.ViewChannel) || !perms?.has(PermissionFlagsBits.SendMessages)) return;
     await channel.send(v2([logCard(title, lines, accent)]));
   } catch (err) {
-    logger.debug({ err, guildId: guildRow.guild_id }, 'log channel post failed');
+    logger.debug({ error: errorDetails(err), guildId: guildRow.guild_id }, 'log channel post failed');
   }
 }
 
@@ -27,20 +28,27 @@ export async function logEvent(client, guildRow, title, lines, accent = ACCENT.b
  * lost permissions). Rate-limited per server so owners never get spammed.
  * @param {{ force?: boolean }} options force skips the cooldown (e.g. channel deleted)
  */
-export async function warnOwner(client, store, guildRow, title, lines, { force = false } = {}) {
+export async function warnOwner(app, guildRow, title, lines, { force = false } = {}) {
+  if (!guildRow) return false;
+  const { client, store } = app;
   const now = Date.now();
   const cooldown = GAME.ownerWarnCooldownHours * 3_600_000;
-  if (!force && guildRow.owner_warned_at && now - guildRow.owner_warned_at < cooldown) return false;
-
   const guild = client.guilds.cache.get(guildRow.guild_id);
   if (!guild) return false;
-  store.updateGuild(guildRow.guild_id, { owner_warned_at: now }, now);
+  const shouldWarn = writeIfLeader(app, () => {
+    const current = store.getGuild(guildRow.guild_id);
+    if (!current || current.created_at !== guildRow.created_at ||
+        (!force && current.owner_warned_at && now - current.owner_warned_at < cooldown)) return false;
+    store.updateGuild(guildRow.guild_id, { owner_warned_at: now }, now);
+    return true;
+  });
+  if (!shouldWarn) return false;
   try {
     const owner = await guild.fetchOwner();
     await owner.send(v2([ownerAlertDm(guild.name, title, lines)]));
     return true;
   } catch (err) {
-    logger.info({ guildId: guild.id, err: err.message }, 'could not DM server owner');
+    logger.info({ guildId: guild.id, error: errorDetails(err) }, 'could not DM server owner');
     return false;
   }
 }
