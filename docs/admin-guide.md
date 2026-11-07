@@ -30,10 +30,10 @@ The invite link asks for these permissions:
 | Send Messages | Post milestones, records and notices |
 | Read Message History | Follow the count |
 | Add Reactions | ✅ ❌ 🛟 and friends |
+| Manage Messages | Remove chatter in Strict channel mode and delete attempts from benched players |
+| Manage Roles | Assign and remove the optional ruined role |
 
-Grant **Manage Messages** to Sum in the counting channel if you want it to delete chatter in strict mode or remove benched players’ attempts. A Sum admin who enables message deletion or moves the game to a channel where Sum will delete messages also needs Discord’s **Manage Messages** permission there.
-
-Grant **Manage Roles** to Sum only if you use the optional ruined role. For existing installs, review these permissions on Sum’s Discord role and channel overrides.
+A Sum admin who enables message deletion or moves the game to a channel where Sum will delete messages also needs Discord’s **Manage Messages** permission there.
 
 Grant **View Audit Log** to Sum if you want it to check single deletions of the latest count for moderation activity. With **Bench count deleters & editors** on, Sum can bench a likely self-delete after a short check. It skips the penalty when a moderator action matches or the audit check is inconclusive. Bulk deletions are reposted without a penalty.
 
@@ -92,5 +92,5 @@ Kick Sum like any other bot. Its live game data is kept for **30 days** in case 
 
 - Mount a persistent volume at `/data` (owned by UID 1000). The first upgrade from v0.1.1 or earlier changes the SQLite schema. Back up the database and stop the old container before starting the upgraded one. Keep the pre-upgrade backup if you need to roll back to the older binary. Future overlapping containers must share the same database file.
 - Keep the health port internal. `/healthz` checks the gateway and database. `/readyz` also checks that the instance owns the writer lease.
-- In the Discord Developer Portal, set Guild Install scopes to `bot` and `applications.commands` and use the four default permissions above. Enable Message Content for counting. Server Members and Presence can stay off.
+- In the Discord Developer Portal, set Guild Install scopes to `bot` and `applications.commands` and use the six default permissions above (`268512320`). Enable Message Content for counting. Server Members and Presence can stay off.
 - Sum prunes local snapshots by age and by `BACKUP_KEEP`. If you enable R2, give its token object read/write access only to the backup bucket. Set an [R2 lifecycle rule](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) to expire objects under `R2_PREFIX` (default `sum/`) after seven days, including when Sum is offline.

@@ -4,7 +4,7 @@ All notable changes to Sum are listed here. Versions follow [Semantic Versioning
 
 ## [0.1.2] — 2026-11-07
 
-- Require counting-channel access and Read Message History for game stats, resets and wipes. Keep help open to all members. Require Discord permissions for delegated channel moderation and ruined-role configuration. Use a smaller default invite.
+- Require counting-channel access and Read Message History for game stats, resets and wipes. Keep help open to all members. Request Manage Messages and Manage Roles up front and check Discord permissions for delegated moderation and ruined-role configuration.
 - Repost deleted counts and check likely self-deletes with optional View Audit Log. Preserve edit benching and process count, edit and delete state in order.
 - Keep temporary role cleanup through wipes and permission failures. Respect existing manual grants.
 - Wait for Discord readiness before a deploy takes over, fence game writes in SQLite and deduplicate replayed counts.

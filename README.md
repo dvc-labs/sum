@@ -6,7 +6,7 @@
 1 → 2 → 1+2 → 2x2 → 10/2 → 6 → … 💥
 ```
 
-**[➕ Add Sum to your server](https://discord.com/oauth2/authorize?client_id=1568278807444463708&permissions=68672&integration_type=0&scope=bot+applications.commands)** · **[💬 Support: dvc.labs Discord](https://discord.gg/dRxSt8Bt9t)**
+**[➕ Add Sum to your server](https://discord.com/oauth2/authorize?client_id=1568278807444463708&permissions=268512320&integration_type=0&scope=bot+applications.commands)** · **[💬 Support: dvc.labs Discord](https://discord.gg/dRxSt8Bt9t)**
 
 ---
 
@@ -26,7 +26,7 @@
 
 ## Get started
 
-1. **[Add Sum](https://discord.com/oauth2/authorize?client_id=1568278807444463708&permissions=68672&integration_type=0&scope=bot+applications.commands)** to your server.
+1. **[Add Sum](https://discord.com/oauth2/authorize?client_id=1568278807444463708&permissions=268512320&integration_type=0&scope=bot+applications.commands)** to your server.
 2. Create a channel for counting. `#sum` works well.
 3. Run **`/sum`** and pick that channel in **⚙️ Settings**.
 4. Someone types **1**.

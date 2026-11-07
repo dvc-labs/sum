@@ -240,6 +240,7 @@ test('/about shows version, brand colour and links', async () => {
   assert.ok(json.includes(`v${BRAND.version}`));
   assert.ok(json.includes('discord.gg/dRxSt8Bt9t'));
   assert.ok(json.includes('davevancauwenberghe.be'));
+  assert.ok(json.includes('permissions=268512320'));
   assert.equal(about.components[0].toJSON().accent_color, 0xff4500);
 });
 

@@ -48,6 +48,8 @@ export const INVITE_PERMISSIONS = [
   'SendMessages',
   'ReadMessageHistory',
   'AddReactions',
+  'ManageMessages',
+  'ManageRoles',
 ];
 
 /** Game tuning constants. */
