@@ -107,6 +107,10 @@ export const MIGRATIONS = [
   -- Discord does not identify who deleted a message. Lift old deletion benches.
   DELETE FROM disqualified WHERE reason = 'delete';
   `,
+  // v3 — durable counting-channel history cursor
+  `
+  ALTER TABLE guilds ADD COLUMN count_cursor TEXT;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

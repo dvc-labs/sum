@@ -1,7 +1,7 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { GAME } from '../config.js';
 import { parseCount } from './parser.js';
-import { applyOutcome, evaluate } from './engine.js';
+import { recordCountAttempt } from './engine.js';
 import { v2, ACCENT, card, fmt, user } from '../ui/kit.js';
 import {
   milestoneCard,
@@ -34,8 +34,10 @@ const EMOJI = {
 
 function inCountingChannel(app, guildId, channelId, update) {
   if (!guildId || !app.store.isCountingChannel(guildId, channelId)) return;
+  const generation = app.leader?.generation;
   return app.queue.run(guildId, () => {
     const afterCommit = writeIfLeader(app, () => {
+      if (app.leader?.generation !== generation) return;
       const guild = app.store.getGuild(guildId);
       if (!guild || guild.left_at || guild.count_channel_id !== channelId) return;
       return update(guild);
@@ -85,10 +87,18 @@ function canManageMessages(message) {
 
 /* ───────────────────────────── New messages ───────────────────────────── */
 
+export function isPlayerMessage(message) {
+  return Boolean(message.author && !message.author.bot && !message.system && !message.webhookId);
+}
+
 export function onMessageCreate(app, message) {
-  if (!message.author || message.author.bot || message.system || message.webhookId) return;
+  if (!isPlayerMessage(message)) return;
   const { content } = message; // Discord.js can mutate a cached Message on edit
-  return inCountingChannel(app, message.guildId, message.channelId, (guild) => processCount(app, guild, message, content));
+  return inCountingChannel(app, message.guildId, message.channelId, (guild) => {
+    const afterCommit = processCount(app, guild, message, content);
+    app.store.advanceCountCursor(guild.guild_id, message.id);
+    return afterCommit;
+  });
 }
 
 function processCount(app, guild, message, content) {
@@ -102,15 +112,13 @@ function processCount(app, guild, message, content) {
       }
     }, { essential: true });
   }
-  if (!store.claimCount(guild.guild_id, message.id)) return;
-
-  const disqualified = Boolean(guild.rule_edit_delete) && store.isDisqualified(guild.guild_id, message.author.id, guild.run_id);
-  const outcome = evaluate(guild, { userId: message.author.id, parsed, disqualified });
-  const updated = applyOutcome(store, guild, {
+  const result = recordCountAttempt(store, guild, {
     userId: message.author.id,
     messageId: message.id,
-    outcome,
+    parsed,
   });
+  if (!result) return;
+  const { outcome, updated } = result;
   return () => {
     const essential = outcome.type === 'saved' || outcome.type === 'ruined' ||
       (outcome.type === 'disqualified' && canManageMessages(message));

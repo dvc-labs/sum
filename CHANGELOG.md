@@ -2,6 +2,10 @@
 
 All notable changes to Sum are listed here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+- Recover missed count attempts from Discord history after downtime or a writer handoff.
+
 ## [0.1.2] — 2026-11-07
 
 - Require counting-channel access and Read Message History for game stats, resets and wipes. Keep help open to all members. Request Manage Messages and Manage Roles up front and check Discord permissions for delegated moderation and ruined-role configuration.

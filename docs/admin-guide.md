@@ -94,7 +94,15 @@ Kick Sum like any other bot. Its live game data is kept for **30 days** in case 
 
 ## Self-hosting and Coolify
 
-- Mount a persistent volume at `/data` (owned by UID 1000). The first upgrade from v0.1.1 or earlier changes the SQLite schema. Back up the database and stop the old container before starting the upgraded one. Keep the pre-upgrade backup if you need to roll back to the older binary. Future overlapping containers must share the same database file.
+- Mount a persistent volume at `/data` (owned by UID 1000). Back up the database and stop the old container before a schema upgrade, including the upgrade to schema v3 for catch-up. Keep the pre-upgrade backup if you need to roll back to the older binary. Future overlapping containers must share the same database file.
 - Keep the health port internal. `/healthz` checks the gateway and database. `/readyz` also checks that the instance owns the writer lease.
 - In the Discord Developer Portal, set Guild Install scopes to `bot` and `applications.commands` and use the six default permissions above (`268512320`). Enable Message Content for counting. Server Members and Presence can stay off.
 - Sum prunes local snapshots by age and by `BACKUP_KEEP`. If you enable R2, give its token object read/write access only to the backup bucket. Set an [R2 lifecycle rule](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) to expire objects under `R2_PREFIX` (default `sum/`) after seven days, including when Sum is offline.
+
+## Counting after downtime
+
+When Sum takes over or reconnects with a fresh Discord session, it checks the counting channel’s history from its saved position. It processes surviving count attempts in message order using the channel’s game rules, including saves and resets. Live attempts for that server wait while the check runs. Sum posts one summary with the next number.
+
+The check uses **View Channel** and **Read Message History**. It processes a backlog of up to **500 channel messages** within a **10-second** recovery window. If the backlog is larger or the read fails or times out, Sum resumes from the saved game state and posts a notice when it can.
+
+History contains the text as it exists when Sum reads it. Catch-up skips deleted messages and applies game state without retroactive reactions, deletes, benches or role grants. The first startup after upgrading to SQLite schema v3 establishes a starting position for existing channels. Moving the game or using **Reset count** also sets a fresh starting position.
