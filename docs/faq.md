@@ -18,6 +18,8 @@ Only edits that change the number count as tampering. If your edit changed `42` 
 **When does deleting a count get me benched?**
 If Sum has **View Audit Log** and benching is on, it checks single deletions of the latest count for a matching moderation action. Sum can bench likely self-deletes. It skips the penalty for bulk deletes or when the check is unavailable or inconclusive. An admin can turn off **Bench count deleters & editors** or reset the run to clear benches.
 
+See the [audit scan limit in the admin guide](admin-guide.md#permissions).
+
 **How do saves work again?**
 1 to start, +1 each time the count reaches a multiple of 200, max 3. Each save absorbs one mistake. See [How to play](how-to-play.md#-saves).
 

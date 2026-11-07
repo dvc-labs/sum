@@ -412,7 +412,7 @@ function settingsRules(ctx) {
   const c = container();
   c.addTextDisplayComponents(text('## 📜 Settings · Rules\nTap a button to flip a rule. Changes apply instantly.'));
   c.addTextDisplayComponents(text(ctx.canCheckDeletes
-    ? '-# Sum can check the server audit log before benching a player for deleting their count.'
+    ? '-# Sum checks the audit log for likely self-deletes. If it hits the scan limit, it reposts the count and skips the bench.'
     : '-# Grant Sum **View Audit Log** if you also want it to check for self-deletions.'));
   c.addSeparatorComponents(separator());
   for (const rule of RULES) {

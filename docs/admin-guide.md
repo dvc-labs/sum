@@ -37,6 +37,10 @@ A Sum admin who enables message deletion or moves the game to a channel where Su
 
 Grant **View Audit Log** to Sum if you want it to check single deletions of the latest count for moderation activity. With **Bench count deleters & editors** on, Sum can bench a likely self-delete after a short check. It skips the penalty when a moderator action matches or the audit check is inconclusive. Bulk deletions are reposted without a penalty.
 
+Sum scans up to three pages of 100 message-deletion audit entries per check. If all three pages are full, it reposts the count and skips the bench, even when the 300 entries are for unrelated deletions.
+
+A single-delete event identifies the message and channel. Sum waits three seconds for the audit log and infers who deleted it from matching entries. A moderation deletion whose entry is late or absent can look like a self-delete. Count edits still follow the usual benching rule.
+
 If Sum is missing something, the panel shows a ⚠️ warning. Sum also posts the problem in the log channel and DMs the server owner, at most once a day.
 
 ## Rules (⚙️ Settings → 📜 Rules)
