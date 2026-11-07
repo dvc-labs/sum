@@ -254,3 +254,45 @@ test('startup limits concurrent history reads across guilds', async () => {
   assert.equal(peak, 4);
   assert.equal(h.requests.length, 6);
 });
+
+test('a server that never gets a history lane skips quietly instead of reporting a failed read', async () => {
+  const h = fixture({ timeoutMs: 30 });
+  const release = Promise.withResolvers();
+  h.delayFetch(() => release.promise);
+  const channel = h.guild.channels.cache.get('c');
+  for (let i = 0; i < 5; i++) { // six servers compete for four history lanes
+    const id = `g${i}`;
+    h.store.ensureGuild(id);
+    h.store.updateGuild(id, { count_channel_id: 'c' });
+    h.store.updateGuild(id, { count_cursor: '1000' });
+    h.app.client.guilds.cache.set(id, { ...h.guild, id, channels: { cache: new Map([['c', channel]]) } });
+  }
+  h.catchUp.runConfigured();
+  await h.app.queue.drain();
+  await h.app.effects.drain();
+  release.resolve();
+  await new Promise(setImmediate);
+  // Four reads started and timed out. The other two never read anything.
+  assert.equal(h.notices.length, 4);
+  for (const id of ['g', 'g0', 'g1', 'g2', 'g3', 'g4']) assert.equal(h.store.getGuild(id).count_cursor, '1000');
+});
+
+test('repeated failed reads post one notice, while every oversized gap still gets its own', async () => {
+  const h = fixture({ maxMessages: 2 });
+  h.delayFetch(async () => { throw new Error('Discord is unavailable'); });
+  for (let i = 0; i < 3; i++) {
+    await h.catchUp.run(h.guild, { freshConnection: true });
+    await h.app.effects.drain();
+  }
+  assert.equal(h.notices.length, 1);
+  assert.match(h.notices[0], /couldn’t read the full backlog/);
+
+  h.delayFetch(async () => {});
+  h.history.push(h.message(1001, 'a', 1), h.message(1002, 'b', 2), h.message(1003, 'a', 3));
+  await h.recover();
+  h.history.push(h.message(1004, 'a', 4), h.message(1005, 'b', 5), h.message(1006, 'a', 6));
+  await h.recover();
+  assert.equal(h.notices.length, 3);
+  assert.match(h.notices[1], /exceeded/);
+  assert.match(h.notices[2], /exceeded/);
+});

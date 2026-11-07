@@ -103,6 +103,6 @@ Kick Sum like any other bot. Its live game data is kept for **30 days** in case 
 
 When Sum takes over or reconnects with a fresh Discord session, it checks the counting channel’s history from its saved position. It processes surviving count attempts in message order using the channel’s game rules, including saves and resets. Live attempts for that server wait while the check runs. Sum posts one summary with the next number.
 
-The check uses **View Channel** and **Read Message History**. It processes a backlog of up to **500 channel messages** within a **10-second** recovery window. If the backlog is larger or the read fails or times out, Sum resumes from the saved game state and posts a notice when it can.
+The check uses **View Channel** and **Read Message History**. It processes a backlog of up to **500 channel messages** within a **10-second** recovery window. If the backlog is larger or the read fails or times out, Sum resumes from the saved game state and posts a notice when it can. Failure notices are limited to one per 30 minutes. If many servers reconnect at once and yours does not get a turn to read within the window, Sum skips the check quietly and resumes from the saved state.
 
 History contains the text as it exists when Sum reads it. Catch-up skips deleted messages and applies game state without retroactive reactions, deletes, benches or role grants. The first startup after upgrading to SQLite schema v3 establishes a starting position for existing channels. Moving the game or using **Reset count** also sets a fresh starting position.

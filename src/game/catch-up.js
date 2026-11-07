@@ -11,6 +11,7 @@ import { KeyedQueue } from './queue.js';
 
 const HISTORY_PERMISSIONS = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory];
 const HISTORY_LANES = 4;
+const FAILURE_NOTICE_COOLDOWN_MS = 30 * 60_000;
 
 async function readMissedMessages(channel, cursor, maxMessages, signal) {
   const messages = [];
@@ -36,7 +37,7 @@ async function readMissedMessages(channel, cursor, maxMessages, signal) {
   }
 }
 
-async function readWithDeadline(read, timeoutMs) {
+async function readWithDeadline(read, timeoutMs, progress) {
   const controller = new AbortController();
   let timer;
   try {
@@ -45,7 +46,8 @@ async function readWithDeadline(read, timeoutMs) {
       new Promise((resolve) => {
         timer = setTimeout(() => {
           controller.abort();
-          resolve({ skipped: 'timeout' });
+          // A read that never got a history lane attempted nothing, so it cannot have failed.
+          resolve({ skipped: progress.started ? 'timeout' : 'busy' });
         }, timeoutMs);
       }),
     ]);
@@ -58,10 +60,12 @@ async function readWithDeadline(read, timeoutMs) {
 
 /** Schedules recovery ahead of live game events in each guild's state queue. */
 export class CountCatchUp {
-  constructor(app, { maxMessages = 500, timeoutMs = 10_000 } = {}) {
+  constructor(app, { maxMessages = 500, timeoutMs = 10_000, noticeCooldownMs = FAILURE_NOTICE_COOLDOWN_MS } = {}) {
     this.app = app;
     this.maxMessages = maxMessages;
     this.timeoutMs = timeoutMs;
+    this.noticeCooldownMs = noticeCooldownMs;
+    this.failureNotices = new Map();
     this.pending = new Map();
     this.historyReads = new KeyedQueue();
     this.nextLane = 0;
@@ -112,10 +116,17 @@ export class CountCatchUp {
 
     const lane = this.nextLane;
     this.nextLane = (lane + 1) % HISTORY_LANES;
+    const progress = { started: false };
     const history = await readWithDeadline((signal) => this.historyReads.run(lane, () => {
       if (leader && (leader.generation !== generation || !leader.isLeader())) return {};
+      progress.started = true;
       return readMissedMessages(channel, saved.count_cursor, this.maxMessages, signal);
-    }), this.timeoutMs);
+    }), this.timeoutMs, progress);
+    if (history.skipped === 'busy') {
+      // Other servers held every lane for the whole window. Nothing was read, so don't claim a failure.
+      logger.warn({ guildId: id }, 'count catch-up skipped — history reads were busy');
+      return;
+    }
     const applied = writeIfLeader(app, () => {
       if (leader?.generation !== generation || !channel.permissionsFor(bot)?.has(HISTORY_PERMISSIONS)) return;
       let guild = store.getGuild(id);
@@ -151,6 +162,13 @@ export class CountCatchUp {
   announce(channel, saved, skipped, attempts, generation) {
     const { effects, store, leader } = this.app;
     const id = saved.guild_id;
+    if (skipped && skipped !== 'limit') {
+      // A failing API can end sessions repeatedly. One warning per window is enough.
+      // An oversized gap moves the cursor, so each of those is new information.
+      const now = Date.now();
+      if (now - (this.failureNotices.get(id) ?? 0) < this.noticeCooldownMs) return;
+      this.failureNotices.set(id, now);
+    }
     effects.run(id, async () => {
       if (leader && (leader.generation !== generation || !leader.isLeader())) return;
       const guild = store.getGuild(id);
