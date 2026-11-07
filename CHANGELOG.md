@@ -11,13 +11,6 @@ All notable changes to Sum are listed here. Versions follow [Semantic Versioning
   - the **dvc. logo** on the support, website and help buttons and in the fine print
 - Safe fallback: if a custom emoji ever can't be shown, Sum uses ✅ ❌ 🔢 🧡 instead, so reactions and cards keep working.
 - Sum checks its emoji at startup and notes any problem in its logs.
-- **Sum colour role.** When Sum joins a server (and, once, for servers it is already in) it creates a permission-less role called **Sum colour** in the brand orange `#FF4500` and wears it. Discord doesn't let a bot recolour its own role, so this is the way to get a consistent colour.
-  - Admins can switch it off in `/sum` → ⚙️ Settings → 🎭 **Roles** (the role is deleted).
-  - It's never recoloured or recreated after an admin changes or deletes it, and it is skipped without **Manage Roles**.
-  - The settings tab *Ruined role* is now called *Roles*.
-
-### Changed
-- Database schema v2 (two additive columns). Servers already using Sum keep all their data.
 
 ## [0.1.0] — 2026-11-06
 

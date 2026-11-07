@@ -31,10 +31,7 @@ function harness() {
     name: 'Test',
     ownerId: 'owner',
     members: {
-      me: {
-        permissions: { has: () => true },
-        roles: { cache: new Map(), highest: { position: 10 }, add: async () => {} },
-      },
+      me: null,
       fetch: async (userId) => ({
         roles: {
           cache: new Map([['ruined', {}]]),
@@ -44,14 +41,7 @@ function harness() {
       }),
     },
     channels: { cache: new Map([['count', countChannel]]) },
-    roles: {
-      cache: new Collection(),
-      create: async (opts) => {
-        const role = { id: 'brand1', name: opts.name, managed: false, position: 1, colors: opts.colors, permissions: { bitfield: 0n }, delete: async () => guild.roles.cache.delete('brand1') };
-        guild.roles.cache.set('brand1', role);
-        return role;
-      },
-    },
+    roles: { cache: new Map() },
     fetchOwner: async () => ({ send: async () => {} }),
   };
   const client = {
@@ -245,22 +235,4 @@ test('danger zone: reset and wipe', async () => {
   assert.equal(h.store.tempRolesForGuild('g').length, 0);
   assert.equal(h.g().high_score, 0);
   assert.equal(h.g().count_channel_id, null);
-});
-
-test('Roles tab: toggling the Sum colour role creates and deletes it', async () => {
-  const h = harness();
-  h.store.updateGuild('g', { brand_role_enabled: 0 });
-  const on = await h.interact('sum:toggle:brand_role_enabled:role');
-  assert.equal(h.g().brand_role_enabled, 1);
-  assert.equal(h.g().brand_role_id, 'brand1');
-  assert.ok(JSON.stringify(on.components).includes('Sum colour role'));
-
-  const off = await h.interact('sum:toggle:brand_role_enabled:role');
-  assert.equal(h.g().brand_role_enabled, 0);
-  assert.equal(h.g().brand_role_id, null);
-  assert.ok(JSON.stringify(off.components).includes('disabled'));
-
-  const denied = await h.interact('sum:toggle:brand_role_enabled:role', { userId: 'rando' });
-  assert.ok(JSON.stringify(denied.components).includes('Admins only'));
-  assert.equal(h.g().brand_role_enabled, 0);
 });

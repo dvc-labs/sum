@@ -24,9 +24,6 @@ Discord doesn't tell bots who deleted a message, so Sum assumes it was the autho
 **The ruined role isn't being given out.**
 Drag Sum's role **above** the ruined role in Server Settings → Roles, and make sure Sum has **Manage Roles**.
 
-**What is the "Sum colour" role?**
-A role with no permissions that gives Sum its orange name colour. Discord doesn't let bots recolour their own role, so Sum uses this one instead. Turn it off in `/sum` → ⚙️ Settings → 🎭 Roles and Sum deletes it. If you remove Sum from your server, delete the role yourself. Details in the [Admin guide](admin-guide.md#sum-colour-role).
-
 **Can I have more than one counting channel?**
 One per server for now.
 

@@ -40,7 +40,6 @@ export const BRAND = Object.freeze({
   repo: 'https://github.com/dvc-labs/sum',
   docs: 'https://github.com/dvc-labs/sum/tree/main/docs',
   fineprint: 'With love from dvc.',
-  roleName: 'Sum colour',
 });
 
 /** Bot permissions requested on invite. Keep in sync with docs/admin-guide.md. */

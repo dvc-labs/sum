@@ -324,7 +324,7 @@ export function helpView(ctx) {
 const SETTINGS_TABS = [
   ['channels', 'Channels & admins', '📍'],
   ['rules', 'Rules', '📜'],
-  ['role', 'Roles', '🎭'],
+  ['role', 'Ruined role', '🎭'],
   ['danger', 'Danger zone', '🧨'],
 ];
 
@@ -428,33 +428,17 @@ function settingsRole(ctx) {
   const g = ctx.guild;
   const c = container();
   const on = Boolean(g.ruined_role_enabled);
-  const brandOn = Boolean(g.brand_role_enabled);
-  c.addTextDisplayComponents(text('## 🎭 Settings · Roles'));
-  c.addSectionComponents(
-    sectionWithButton(
-      [
-        `**Sum colour role** — ${brandOn ? 'enabled' : 'disabled'}`,
-        `-# Gives Sum its orange name colour with a small **${BRAND.roleName}** role that has no permissions. Turning this off deletes the role.`,
-        ctx.brandIssue ? `⚠️ ${ctx.brandIssue}` : null,
-      ]
-        .filter(Boolean)
-        .join('\n'),
-      button('sum:toggle:brand_role_enabled:role', brandOn ? 'On' : 'Off', brandOn ? ButtonStyle.Success : ButtonStyle.Secondary, {
-        emoji: btn(brandOn ? 'checkmark' : 'crossmark'),
-      }),
-    ),
-  );
-  c.addSeparatorComponents(separator());
   c.addTextDisplayComponents(
     text(
       [
-        '### Ruined role',
+        '## 🎭 Settings · Ruined role',
         'Give whoever ruins a run a temporary role. Make it something fun like **@Ruined It**.',
         '-# Sum’s own role must sit **above** this role in Server Settings → Roles.',
       ].join('\n'),
     ),
   );
   if (ctx.issues?.length) c.addTextDisplayComponents(text(`⚠️ ${ctx.issues.join('\n⚠️ ')}`));
+  c.addSeparatorComponents(separator());
   c.addSectionComponents(
     sectionWithButton(
       `**Ruined role** — ${on ? 'enabled' : 'disabled'}\n-# Role: ${
