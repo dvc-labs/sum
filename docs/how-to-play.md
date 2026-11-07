@@ -22,12 +22,12 @@ Sam:   5 let's go ← extra text after the number is fine
 
 | Reaction | Meaning |
 |---|---|
-| ✅ | Correct |
+| ✅ (Sum's own checkmark) | Correct |
 | ☑️ | Correct, and past the server's previous high score |
 | 💯 | Correct, and a multiple of 100 |
 | 🎉 | Correct, and a multiple of 1,000 (Sum posts a celebration too) |
 | 🛟 | A mistake that a save absorbed. The run continues |
-| ❌ | Wrong, and the run ended (or the count was rejected) |
+| ❌ (Sum's own crossmark) | Wrong, and the run ended (or the count was rejected) |
 | ⛔ | You're benched for this run (see below) |
 
 ## Mistakes

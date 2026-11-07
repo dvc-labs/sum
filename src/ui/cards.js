@@ -1,17 +1,18 @@
 import { BRAND, GAME } from '../config.js';
-import { ACCENT, card, container, fmt, linkButton, row, separator, text, ts, user } from './kit.js';
+import { ACCENT, card, container, fineprint, fmt, linkButton, row, separator, text, ts, user } from './kit.js';
+import { btn, e } from './emoji.js';
 
 /* ───────────────────────── Counting channel cards ───────────────────────── */
 
 export function kickoffCard() {
   return card({
-    title: '🔢 Sum is live in this channel!',
+    title: `${e('sum')} Sum is live in this channel!`,
     body: [
       'Count up together, one number per message. Start with **1**.',
       'Math works too: `1+1`, `2x2`, `10/2`. Don’t count twice in a row.',
       'Run `/sum` for stats, leaderboards and the rules.',
     ].join('\n'),
-    footer: BRAND.fineprint,
+    footer: fineprint(),
   });
 }
 
@@ -46,7 +47,7 @@ export function savedCard(outcome, userId) {
 export function rejectedNoticeCard(outcome, userId) {
   return card({
     accent: ACCENT.warning,
-    body: `❌ ${user(userId)} ${REASON_TEXT[outcome.reason](outcome)}. Next number is **${fmt(outcome.expected)}**.`,
+    body: `${e('crossmark')} ${user(userId)} ${REASON_TEXT[outcome.reason](outcome)}. Next number is **${fmt(outcome.expected)}**.`,
   });
 }
 
@@ -101,7 +102,7 @@ export function welcomeDm(guildName, addressedToOwner) {
   c.addTextDisplayComponents(
     text(
       [
-        `## Thanks for inviting Sum to **${guildName}**! 🧡`,
+        `## ${e('sum')} Thanks for inviting Sum to **${guildName}**! 🧡`,
         addressedToOwner ? '-# Sent to you as the server owner.' : null,
         'Sum is a classic counting game: your members count up one number at a time, and one mistake can end the run.',
       ]
@@ -125,11 +126,11 @@ export function welcomeDm(guildName, addressedToOwner) {
   c.addTextDisplayComponents(text('Questions, ideas or bugs? Come say hi in the **dvc.labs** server.'));
   c.addActionRowComponents(
     row(
-      linkButton('dvc.labs support', BRAND.supportInvite, '💬'),
+      linkButton('dvc.labs support', BRAND.supportInvite, btn('dvc')),
       linkButton('How Sum works', BRAND.docs, '📖'),
     ),
   );
-  c.addTextDisplayComponents(text(`-# ${BRAND.fineprint}`));
+  c.addTextDisplayComponents(text(`-# ${fineprint()}`));
   return c;
 }
 
@@ -138,8 +139,8 @@ export function ownerAlertDm(guildName, title, lines) {
   c.addTextDisplayComponents(
     text([`## ⚠️ ${title}`, `-# Server: **${guildName}**`, ...lines].join('\n')),
   );
-  c.addActionRowComponents(row(linkButton('Get help', BRAND.supportInvite, '💬')));
-  c.addTextDisplayComponents(text(`-# ${BRAND.fineprint}`));
+  c.addActionRowComponents(row(linkButton('Get help', BRAND.supportInvite, btn('dvc'))));
+  c.addTextDisplayComponents(text(`-# ${fineprint()}`));
   return c;
 }
 
@@ -150,7 +151,7 @@ export function aboutCard({ guildCount, invite }) {
   c.addTextDisplayComponents(
     text(
       [
-        `## Sum · v${BRAND.version}`,
+        `## ${e('sum')} Sum · v${BRAND.version}`,
         'A classic counting game for Discord. Count up together, one number at a time — math allowed, mistakes punished, records celebrated.',
       ].join('\n'),
     ),
@@ -167,12 +168,12 @@ export function aboutCard({ guildCount, invite }) {
   );
   c.addActionRowComponents(
     row(
-      linkButton('dvc.labs Discord', BRAND.supportInvite, '💬'),
-      linkButton('dvc.', BRAND.website, '🌐'),
+      linkButton('dvc.labs Discord', BRAND.supportInvite, btn('dvc')),
+      linkButton('dvc.', BRAND.website, btn('dvc')),
       linkButton('GitHub', BRAND.repo, '📖'),
-      linkButton('Add Sum', invite, '➕'),
+      linkButton('Add Sum', invite, btn('sum')),
     ),
   );
-  c.addTextDisplayComponents(text(`-# ${BRAND.fineprint}`));
+  c.addTextDisplayComponents(text(`-# ${fineprint()}`));
   return c;
 }
