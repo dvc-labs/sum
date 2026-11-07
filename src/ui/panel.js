@@ -46,9 +46,9 @@ const RULES = [
   },
   {
     key: 'rule_edit_delete',
-    title: 'Bench count deleters & editors',
+    title: 'Bench count editors',
     off: 'Off: Sum still reposts the count, but nobody is benched.',
-    on: 'On: delete or edit your latest count and you sit out until the next reset.',
+    on: 'On: changing the number in your latest count benches you until the next reset.',
   },
   {
     key: 'math_enabled',
@@ -185,7 +185,7 @@ function leaderboardLine(category, s) {
 }
 
 export function leaderboardView(ctx, category = 'counts', page = 0) {
-  if (!CATEGORY_LABELS[category]) category = 'counts';
+  if (!Object.hasOwn(CATEGORY_LABELS, category)) category = 'counts';
   const board = ctx.store.leaderboard(ctx.guild.guild_id, category, page);
   const meta = CATEGORY_LABELS[category];
   const c = container(category === 'shame' ? ACCENT.danger : ACCENT.brand);
@@ -244,7 +244,7 @@ export function playerView(ctx, targetId = ctx.userId, targetIsBot = false) {
   const c = container();
   const self = targetId === ctx.userId;
   const s = ctx.store.getStats(ctx.guild.guild_id, targetId);
-  const rank = ctx.store.rankOf(ctx.guild.guild_id, targetId, 'counts');
+  const rank = s.counts > 0 ? ctx.store.rankOf(ctx.guild.guild_id, targetId, 'counts') : null;
 
   c.addTextDisplayComponents(text(`## 👤 ${self ? 'Your stats' : 'Player stats'}\n${user(targetId)}`));
   c.addSeparatorComponents(separator());
@@ -268,8 +268,8 @@ export function playerView(ctx, targetId = ctx.userId, targetIsBot = false) {
         ].join('\n'),
       ),
     );
-    if (ctx.store.isDisqualified(ctx.guild.guild_id, targetId, ctx.guild.run_id)) {
-      c.addTextDisplayComponents(text('⛔ Benched for this run (deleted or edited a count).'));
+    if (ctx.guild.rule_edit_delete && ctx.store.isDisqualified(ctx.guild.guild_id, targetId, ctx.guild.run_id)) {
+      c.addTextDisplayComponents(text('⛔ Benched for this run (edited a count).'));
     }
   }
 
@@ -303,7 +303,7 @@ export function helpView(ctx) {
       : `${e('crossmark')} Wrong numbers are rejected, the run continues.`,
     g.rule_double_count ? '👯 You can’t count twice in a row.' : '👯 Back-to-back counting is allowed.',
     g.rule_edit_delete
-      ? '✏️ Deleting or editing your latest count benches you until the next reset.'
+      ? '✏️ Changing your latest count benches you until the next reset. Deleted counts are reposted.'
       : '✏️ Deleted or edited counts are reposted by Sum.',
     g.saves_enabled
       ? `🛟 Saves absorb a mistake. Earn one every ${GAME.saveInterval} counts (max ${GAME.maxSaves}).`
@@ -433,7 +433,7 @@ function settingsRole(ctx) {
       [
         '## 🎭 Settings · Ruined role',
         'Give whoever ruins a run a temporary role. Make it something fun like **@Ruined It**.',
-        '-# Sum’s own role must sit **above** this role in Server Settings → Roles.',
+        '-# Use a dedicated role without permission grants. Sum’s own role must sit **above** it.',
       ].join('\n'),
     ),
   );
@@ -479,7 +479,7 @@ function settingsDanger(ctx, confirm) {
     text(
       [
         '## 🧨 Settings · Danger zone',
-        `**Reset count** — sets the count back to 0 (currently ${fmt(g.current_count)}). High score, saves and player stats stay. Nobody gets blamed.`,
+        `**Reset count** — sets the count back to 0${ctx.canViewGame ? ` (currently ${fmt(g.current_count)})` : ''}. High score, saves and player stats stay. Nobody gets blamed.`,
         '**Wipe server data** — deletes every player stat, the high score and all settings for this server. Cannot be undone.',
       ].join('\n'),
     ),
@@ -519,4 +519,13 @@ export function noAccessView(ctx) {
     text('## 🔒 Admins only\nSettings are for the server owner, Manage Server, and Sum admin roles.'),
   );
   return [c, navRow('overview', false)];
+}
+
+export function gameAccessView(ctx) {
+  const c = container(ACCENT.warning);
+  const message = ctx.guild.count_channel_id
+    ? 'You need access to the counting channel to view its game and player stats.'
+    : 'Ask a server admin to set up a counting channel first.';
+  c.addTextDisplayComponents(text(`## 🔒 Game unavailable\n${message}`));
+  return [c, navRow('overview', ctx.isAdmin)];
 }

@@ -89,8 +89,26 @@ export const MIGRATIONS = [
     heartbeat_at INTEGER NOT NULL
   ) STRICT;
   `,
+  // v2 — replay protection and retryable cleanup for temporary roles
+  `
+  CREATE TABLE processed_counts (
+    guild_id     TEXT    NOT NULL REFERENCES guilds(guild_id) ON DELETE CASCADE,
+    message_id   TEXT    NOT NULL,
+    processed_at INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, message_id)
+  ) STRICT;
+  CREATE INDEX idx_processed_counts_age ON processed_counts (processed_at);
+
+  INSERT INTO processed_counts (guild_id, message_id, processed_at)
+    SELECT guild_id, last_message_id, updated_at FROM guilds WHERE last_message_id IS NOT NULL;
+
+  ALTER TABLE temp_roles ADD COLUMN retry_at INTEGER NOT NULL DEFAULT 0;
+
+  -- Discord does not identify who deleted a message. Lift old deletion benches.
+  DELETE FROM disqualified WHERE reason = 'delete';
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
-export const EXPECTED_TABLES = ['guilds', 'user_stats', 'disqualified', 'temp_roles', 'instance_lock'];
+export const EXPECTED_TABLES = ['guilds', 'user_stats', 'disqualified', 'temp_roles', 'instance_lock', 'processed_counts'];

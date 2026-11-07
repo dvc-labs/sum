@@ -2,6 +2,15 @@
 
 All notable changes to Sum are listed here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+- Scope game views to members with counting-channel access. Require Discord permissions for delegated channel moderation and ruined-role configuration. Use a smaller default invite.
+- Repost deleted counts without assigning blame. Preserve edit benching and process count, edit and delete state in order.
+- Keep temporary role cleanup through wipes and permission failures. Respect existing manual grants.
+- Wait for Discord readiness before a deploy takes over, fence game writes in SQLite and deduplicate replayed counts.
+- Acknowledge settings changes before waiting for work. Process Discord notifications separately from count state and calculate leaderboard ranks in SQLite.
+- Sanitize errors and wrong-count notices. Expire snapshots by age locally and in R2 when configured.
+
 ## [0.1.1] — 2026-11-07
 
 ### Added

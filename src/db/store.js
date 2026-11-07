@@ -44,14 +44,14 @@ export const BOOLEAN_SETTINGS = [
   'ruined_role_enabled',
 ];
 
-export const LEADERBOARD_CATEGORIES = {
-  counts: { order: 'counts DESC, best_streak DESC', where: 'counts > 0' },
+const LEADERBOARD_CATEGORIES = {
+  counts: { scores: ['counts', 'best_streak'], where: 'counts > 0' },
   accuracy: {
-    order: 'CAST(counts AS REAL) / (counts + mistakes) DESC, counts DESC',
+    scores: ['CAST(counts AS REAL) / (counts + mistakes)', 'counts'],
     where: `counts >= ${GAME.accuracyMinCounts}`,
   },
-  streak: { order: 'best_streak DESC, counts DESC', where: 'best_streak > 0' },
-  shame: { order: 'ruins DESC, mistakes DESC', where: 'ruins > 0' },
+  streak: { scores: ['best_streak', 'counts'], where: 'best_streak > 0' },
+  shame: { scores: ['ruins', 'mistakes'], where: 'ruins > 0' },
 };
 
 function hydrateGuild(row) {
@@ -65,6 +65,7 @@ export class Store {
     this.db = db;
     this.stmt = {
       getGuild: db.prepare('SELECT * FROM guilds WHERE guild_id = ?'),
+      countingChannel: db.prepare('SELECT 1 FROM guilds WHERE guild_id = ? AND count_channel_id = ? AND left_at IS NULL'),
       insertGuild: db.prepare(
         `INSERT INTO guilds (guild_id, saves, run_started_at, ruined_role_minutes, joined_at, created_at, updated_at)
          VALUES (@guild_id, @saves, @now, @minutes, @now, @now, @now)
@@ -97,19 +98,53 @@ export class Store {
         'SELECT 1 FROM disqualified WHERE guild_id = ? AND user_id = ? AND run_id = ?',
       ),
       clearDisqualified: db.prepare('DELETE FROM disqualified WHERE guild_id = ? AND run_id < ?'),
-      addTempRole: db.prepare(
-        `INSERT INTO temp_roles (guild_id, user_id, role_id, expires_at) VALUES (?, ?, ?, ?)
-         ON CONFLICT(guild_id, user_id, role_id) DO UPDATE SET expires_at = excluded.expires_at`,
+      claimCount: db.prepare(
+        'INSERT INTO processed_counts (guild_id, message_id, processed_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
       ),
-      dueTempRoles: db.prepare('SELECT * FROM temp_roles WHERE expires_at <= ? LIMIT 100'),
+      purgeProcessedCounts: db.prepare('DELETE FROM processed_counts WHERE processed_at < ?'),
+      addTempRole: db.prepare(
+        `INSERT INTO temp_roles (guild_id, user_id, role_id, expires_at, retry_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(guild_id, user_id, role_id) DO UPDATE SET
+           expires_at = excluded.expires_at, retry_at = excluded.retry_at`,
+      ),
+      getTempRole: db.prepare('SELECT * FROM temp_roles WHERE guild_id = ? AND user_id = ? AND role_id = ?'),
+      dueTempRoles: db.prepare(
+        `SELECT temp_roles.* FROM temp_roles JOIN guilds USING (guild_id)
+         WHERE left_at IS NULL AND expires_at <= ? AND retry_at <= ? ORDER BY expires_at LIMIT 100`,
+      ),
       guildTempRoles: db.prepare('SELECT * FROM temp_roles WHERE guild_id = ?'),
+      retryTempRole: db.prepare(
+        'UPDATE temp_roles SET retry_at = ? WHERE guild_id = ? AND user_id = ? AND role_id = ? AND retry_at = ?',
+      ),
       removeTempRole: db.prepare(
-        'DELETE FROM temp_roles WHERE guild_id = ? AND user_id = ? AND role_id = ?',
+        'DELETE FROM temp_roles WHERE guild_id = ? AND user_id = ? AND role_id = ? AND retry_at = ?',
       ),
       deleteGuild: db.prepare('DELETE FROM guilds WHERE guild_id = ?'),
+      markLeft: db.prepare('UPDATE guilds SET left_at = ?, updated_at = ? WHERE guild_id = ? AND left_at IS NULL'),
       purgeLeft: db.prepare('DELETE FROM guilds WHERE left_at IS NOT NULL AND left_at <= ?'),
       activeGuildIds: db.prepare('SELECT guild_id FROM guilds WHERE left_at IS NULL'),
     };
+    this.boards = new Map(Object.entries(LEADERBOARD_CATEGORIES).map(([category, { scores, where }]) => {
+      const [score, tie] = scores;
+      const eligible = `guild_id = @guildId AND ${where}`;
+      const total = `SELECT COUNT(*) FROM user_stats WHERE ${eligible}`;
+      return [category, {
+        count: db.prepare(total).pluck(),
+        page: db.prepare(
+          `SELECT * FROM user_stats WHERE ${eligible}
+           ORDER BY ${score} DESC, ${tie} DESC, user_id DESC LIMIT @limit OFFSET @offset`,
+        ),
+        rank: db.prepare(
+          `SELECT 1 + (
+             SELECT COUNT(*) FROM user_stats WHERE ${eligible}
+               AND (${score}, ${tie}, user_id) > (target.score, target.tie, @userId)
+           ) AS rank, (${total}) AS "of"
+           FROM (
+             SELECT ${score} AS score, ${tie} AS tie FROM user_stats WHERE ${eligible} AND user_id = @userId
+           ) AS target`,
+        ),
+      }];
+    }));
   }
 
   transaction(fn) {
@@ -118,6 +153,10 @@ export class Store {
 
   getGuild(guildId) {
     return hydrateGuild(this.stmt.getGuild.get(guildId));
+  }
+
+  isCountingChannel(guildId, channelId) {
+    return Boolean(this.stmt.countingChannel.get(guildId, channelId));
   }
 
   /** Creates the guild row on first sight. Returns { guild, created }. */
@@ -170,26 +209,16 @@ export class Store {
   }
 
   rankOf(guildId, userId, category = 'counts') {
-    const cat = LEADERBOARD_CATEGORIES[category];
-    const rows = this.db
-      .prepare(`SELECT user_id FROM user_stats WHERE guild_id = ? AND ${cat.where} ORDER BY ${cat.order}`)
-      .all(guildId);
-    const idx = rows.findIndex((r) => r.user_id === userId);
-    return idx === -1 ? null : { rank: idx + 1, of: rows.length };
+    const board = this.boards.get(category) ?? this.boards.get('counts');
+    return board.rank.get({ guildId, userId }) ?? null;
   }
 
   leaderboard(guildId, category, page, pageSize = GAME.leaderboardPageSize) {
-    const cat = LEADERBOARD_CATEGORIES[category] ?? LEADERBOARD_CATEGORIES.counts;
-    const total = this.db
-      .prepare(`SELECT COUNT(*) AS n FROM user_stats WHERE guild_id = ? AND ${cat.where}`)
-      .get(guildId).n;
+    const board = this.boards.get(category) ?? this.boards.get('counts');
+    const total = board.count.get({ guildId });
     const pages = Math.max(1, Math.ceil(total / pageSize));
     const safePage = Math.min(Math.max(0, page), pages - 1);
-    const rows = this.db
-      .prepare(
-        `SELECT * FROM user_stats WHERE guild_id = ? AND ${cat.where} ORDER BY ${cat.order} LIMIT ? OFFSET ?`,
-      )
-      .all(guildId, pageSize, safePage * pageSize);
+    const rows = board.page.all({ guildId, limit: pageSize, offset: safePage * pageSize });
     return { rows, total, page: safePage, pages };
   }
 
@@ -205,25 +234,41 @@ export class Store {
     this.stmt.clearDisqualified.run(guildId, currentRunId);
   }
 
-  addTempRole(guildId, userId, roleId, expiresAt) {
-    this.stmt.addTempRole.run(guildId, userId, roleId, expiresAt);
+  claimCount(guildId, messageId, now = Date.now()) {
+    return this.stmt.claimCount.run(guildId, messageId, now).changes === 1;
+  }
+
+  purgeProcessedCounts(cutoff) {
+    this.stmt.purgeProcessedCounts.run(cutoff);
+  }
+
+  getTempRole(guildId, userId, roleId) {
+    return this.stmt.getTempRole.get(guildId, userId, roleId);
+  }
+
+  addTempRole(guildId, userId, roleId, expiresAt, retryAt = 0) {
+    this.stmt.addTempRole.run(guildId, userId, roleId, expiresAt, retryAt);
   }
 
   dueTempRoles(now = Date.now()) {
-    return this.stmt.dueTempRoles.all(now);
+    return this.stmt.dueTempRoles.all(now, now);
   }
 
   tempRolesForGuild(guildId) {
     return this.stmt.guildTempRoles.all(guildId);
   }
 
-  removeTempRole(guildId, userId, roleId) {
-    this.stmt.removeTempRole.run(guildId, userId, roleId);
+  retryTempRole(entry, retryAt) {
+    this.stmt.retryTempRole.run(retryAt, entry.guild_id, entry.user_id, entry.role_id, entry.retry_at);
+  }
+
+  removeTempRole(entry) {
+    this.stmt.removeTempRole.run(entry.guild_id, entry.user_id, entry.role_id, entry.retry_at);
   }
 
   /** Server left the bot: keep data for the retention window, then purge. */
   markLeft(guildId, now = Date.now()) {
-    if (this.getGuild(guildId)) this.updateGuild(guildId, { left_at: now }, now);
+    this.stmt.markLeft.run(now, now, guildId);
   }
 
   purgeLeftBefore(cutoff) {
@@ -233,9 +278,15 @@ export class Store {
   /** Admin "wipe": removes every stat for the server and restores default settings. */
   wipeGuild(guildId, now = Date.now()) {
     return this.transaction(() => {
+      const before = this.getGuild(guildId);
+      const cleanup = this.tempRolesForGuild(guildId);
       this.stmt.deleteGuild.run(guildId);
-      this.ensureGuild(guildId, now);
-      return this.updateGuild(guildId, { welcomed: 1 }, now);
+      const generation = Math.max(now, (before?.created_at ?? 0) + 1);
+      this.ensureGuild(guildId, generation);
+      for (const entry of cleanup) {
+        this.addTempRole(guildId, entry.user_id, entry.role_id, now, entry.retry_at);
+      }
+      return this.updateGuild(guildId, { welcomed: 1, left_at: before?.left_at ?? null }, generation);
     });
   }
 

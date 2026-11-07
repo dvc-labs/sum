@@ -35,16 +35,16 @@ export function openDatabase(dbPath, { readonly = false } = {}) {
 }
 
 export function migrate(db) {
-  const current = db.pragma('user_version', { simple: true });
-  if (current > SCHEMA_VERSION) {
-    throw new Error(
-      `Database schema v${current} is newer than this build supports (v${SCHEMA_VERSION}). Refusing to start.`,
-    );
-  }
-  for (let v = current; v < SCHEMA_VERSION; v++) {
-    db.transaction(() => {
+  db.transaction(() => {
+    const current = db.pragma('user_version', { simple: true });
+    if (current > SCHEMA_VERSION) {
+      throw new Error(
+        `Database schema v${current} is newer than this build supports (v${SCHEMA_VERSION}). Refusing to start.`,
+      );
+    }
+    for (let v = current; v < SCHEMA_VERSION; v++) {
       db.exec(MIGRATIONS[v]);
       db.pragma(`user_version = ${v + 1}`);
-    })();
-  }
+    }
+  }).immediate();
 }

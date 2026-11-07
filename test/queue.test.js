@@ -24,3 +24,16 @@ test('different keys run concurrently', async () => {
   await Promise.all([a, b]);
   assert.deepEqual(log, ['b', 'a']);
 });
+
+test('a bounded effects queue sheds overload and releases capacity on completion', async () => {
+  const queue = new KeyedQueue({ maxPerKey: 1, maxTotal: 2 });
+  const gate = Promise.withResolvers();
+  const a = queue.run('a', () => gate.promise);
+  assert.equal(queue.run('a', () => assert.fail('per-guild limit')), undefined);
+  const b = queue.run('b', () => gate.promise);
+  assert.equal(queue.run('c', () => assert.fail('total limit')), undefined);
+  gate.resolve();
+  await Promise.all([a, b]);
+  await queue.drain();
+  assert.equal(await queue.run('a', () => 42), 42);
+});

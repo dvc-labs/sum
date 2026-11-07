@@ -56,9 +56,9 @@ Run `/sum` to see how many saves you have and when the next one arrives.
 Deleting or editing your count to confuse people won't work.
 
 - If the **latest** count is deleted, or edited so it shows a different number, Sum reposts it and tells everyone the next number.
-- The player who did it is **benched until the next reset**. Their counts are removed (or marked ⛔) until the run ends.
+- If you edit your latest count to a different number and the rule is enabled, you are **benched until the next reset**. Your counts are removed (or marked ⛔) until the run ends.
 - Adding text to your count without changing the number (`42` → `42 woo`) is fine.
-- When a moderator bulk-deletes messages, Sum reposts the count but doesn't bench anyone.
+- Single and bulk deletions are reposted without benching anyone.
 
 ## 🏆 High scores & milestones
 
