@@ -2,7 +2,7 @@ import { PermissionFlagsBits } from 'discord.js';
 import { GAME } from '../config.js';
 import { parseCount } from './parser.js';
 import { recordCountAttempt } from './engine.js';
-import { v2, ACCENT, card, fmt, user } from '../ui/kit.js';
+import { v2, ACCENT, fmt, user } from '../ui/kit.js';
 import {
   milestoneCard,
   mistakeReason,
@@ -204,32 +204,34 @@ async function announceCount(app, message, guild, updated, outcome, current) {
 
 export function onMessageDelete(app, message) {
   return inCountingChannel(app, message.guildId, message.channelId, (guild) => {
-    if (guild.last_message_id !== message.id) return;
-    const repost = handleTamper(app, guild, 'delete');
-    return () => Promise.all([repost(), benchSelfDelete(app, guild, message.createdTimestamp)]);
+    if (guild.last_message_id === message.id) return handleTamper(app, guild, 'delete');
   });
 }
 
 export function onMessageDeleteBulk(app, messages, channel) {
   return inCountingChannel(app, channel.guildId, channel.id, (guild) => {
-    if (guild.last_message_id && messages.has(guild.last_message_id)) return handleTamper(app, guild, 'delete');
+    if (guild.last_message_id && messages.has(guild.last_message_id)) {
+      // Bulk deletion requires moderator permissions.
+      return handleTamper(app, guild, 'delete', { allowBench: false });
+    }
   });
 }
 
 export function onMessageUpdate(app, oldMessage, message) {
   const { content, guildId, channelId, id } = message;
-  if (typeof content !== 'string' || oldMessage?.content === content) return;
+  const oldContent = oldMessage?.content;
+  if (typeof content !== 'string' || oldContent === content) return;
+  // An uncached message can gain content during a metadata-only update.
+  if (typeof oldContent !== 'string' && !message.editedTimestamp) return;
   return inCountingChannel(app, guildId, channelId, (guild) => {
-    if (guild.last_message_id !== id) return;
-    const parsed = parseCount(content, { allowMath: Boolean(guild.math_enabled) });
-    if (parsed.value !== guild.current_count) return handleTamper(app, guild, 'edit');
+    if (guild.last_message_id === id) return handleTamper(app, guild, 'edit');
   });
 }
 
-function handleTamper(app, guild, kind) {
+function handleTamper(app, guild, kind, { allowBench = true } = {}) {
   const { store, client } = app;
   const userId = guild.last_user_id;
-  const bench = kind === 'edit' && Boolean(guild.rule_edit_delete) && Boolean(userId);
+  const bench = allowBench && Boolean(guild.rule_edit_delete && userId);
   store.updateGuild(guild.guild_id, { last_message_id: null });
   if (bench) store.disqualify(guild.guild_id, userId, guild.run_id, kind);
 
@@ -244,36 +246,5 @@ function handleTamper(app, guild, kind) {
       `${user(userId)}’s count **${fmt(guild.current_count)}** was ${kind === 'delete' ? 'deleted' : 'edited'}.`,
       bench ? 'They are benched until the next reset.' : null,
     ], ACCENT.warning);
-  }, { essential: true });
-}
-
-async function benchSelfDelete(app, guild, messageCreatedAt) {
-  const { client, store } = app;
-  const { guild_id: id, count_channel_id: channelId, last_user_id: authorId } = guild;
-  if (!guild.rule_edit_delete || !authorId) return;
-  const discordGuild = client.guilds.cache.get(id);
-  if (!await app.deleteAudit.likelySelfDelete(discordGuild, { authorId, channelId, messageCreatedAt })) return;
-
-  const sameRun = (current) => current && current.created_at === guild.created_at && !current.left_at &&
-    current.count_channel_id === channelId && current.run_id === guild.run_id && current.rule_edit_delete;
-  const benched = await app.queue.run(id, () => writeIfLeader(app, () => {
-    if (!sameRun(store.getGuild(id)) || store.isDisqualified(id, authorId, guild.run_id)) return false;
-    store.disqualify(id, authorId, guild.run_id, 'delete');
-    return true;
-  }));
-  if (!benched) return;
-
-  return countEffects(app, guild, async (current) => {
-    if (!sameRun(current)) return;
-    const line = `${user(authorId)} is benched until the next reset.`;
-    const channel = client.channels.cache.get(channelId);
-    if (channel?.isTextBased()) {
-      await safely(app, current, 'send a message', () => channel.send(v2([card({
-        title: '⛔ Deleted count',
-        body: line,
-        accent: ACCENT.warning,
-      })])));
-    }
-    await logEvent(client, current, '⛔ Player benched', [line, 'The audit check found no matching moderation action.'], ACCENT.warning);
   }, { essential: true });
 }

@@ -2,6 +2,13 @@
 
 All notable changes to Sum are listed here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.4] — 2026-11-07
+
+- Remove message-deletion audit checks. On servers with **Bench after edits or deletes** on (the default), a text edit or single deletion of the latest accepted count benches its author. Bulk deletes only repost the count.
+- Accept dot and comma decimals with up to two fractional digits and exact whole-number results.
+- Accept number emoji 0️⃣ through 9️⃣ and 🔟 as counts and in expressions.
+- Explain fractional results in save and run-over notices, and show simpler counting examples in Discord.
+
 ## [0.1.3] — 2026-11-07
 
 - Recover missed count attempts from Discord history after downtime or a writer handoff.

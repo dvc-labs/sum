@@ -6,7 +6,6 @@ import { Store } from '../src/db/store.js';
 import { KeyedQueue } from '../src/game/queue.js';
 import { onMessageCreate, onMessageDelete, onMessageDeleteBulk, onMessageUpdate } from '../src/game/handler.js';
 import { onInteraction } from '../src/interactions/router.js';
-import { DeleteAudit } from '../src/services/delete-audit.js';
 import { BRAND } from '../src/config.js';
 import { reactionId } from '../src/ui/emoji.js';
 
@@ -66,7 +65,6 @@ function harness({ addRole = async () => {} } = {}) {
     channels: { cache: new Map([['count', countChannel], ['other', otherChannel], ['log', logChannel]]) },
     roles: { cache: roles },
     fetchOwner: async () => ({ send: async () => {} }),
-    fetchAuditLogs: async () => ({ entries: new Collection() }),
   };
   const client = {
     guilds: { cache: new Map([['g', guild]]) },
@@ -74,7 +72,7 @@ function harness({ addRole = async () => {} } = {}) {
   };
   const app = {
     client, store, queue: new KeyedQueue(), effects: new KeyedQueue(), roleQueue: new KeyedQueue(),
-    config: { applicationId: '123' }, deleteAudit: new DeleteAudit({ settleMs: 0 }),
+    config: { applicationId: '123' },
   };
   store.ensureGuild('g');
   store.updateGuild('g', { count_channel_id: 'count' });
@@ -86,7 +84,6 @@ function harness({ addRole = async () => {} } = {}) {
       id: `m${++n}`,
       guildId: 'g',
       channelId: 'count',
-      createdTimestamp: Date.now(),
       content,
       url: 'https://discord.com/channels/g/count/x',
       author: { id: userId, bot: false },
@@ -164,8 +161,8 @@ function harness({ addRole = async () => {} } = {}) {
 
 test('a counting session end to end', async () => {
   const h = harness();
-  assert.deepEqual((await h.say('a', '1')).reactions, [OK]);
-  assert.deepEqual((await h.say('b', '1+1')).reactions, [OK]);
+  assert.deepEqual((await h.say('a', '1️⃣')).reactions, [OK]);
+  assert.deepEqual((await h.say('b', '1,5+0,5')).reactions, [OK]);
   assert.deepEqual((await h.say('b', 'hello there')).reactions, []); // chatter ignored
   assert.deepEqual((await h.say('b', '3')).reactions, ['🛟']); // double → save
   assert.equal(h.g().current_count, 2);
@@ -191,35 +188,70 @@ test('strict mode deletes chatter', async () => {
   assert.deepEqual((await h.say('a', 'hi')).reactions, ['deleted']);
 });
 
-test('single and bulk deletes repost the count without benching its author', async () => {
+test('single deletes bench the latest counter and bulk deletes only repost the count', async () => {
   const h = harness();
-  await h.say('a', '1');
+  h.store.updateGuild('g', { log_channel_id: 'log' });
+  const first = await h.say('a', '1');
   const { message } = await h.say('b', '2');
-  await onMessageDelete(h.app, { id: message.id, guildId: 'g', channelId: 'count' });
-  assert.ok(JSON.stringify(h.sent.at(-1).components).includes('vanished'));
-  assert.equal(h.store.isDisqualified('g', 'b', h.g().run_id), false);
-  const third = await h.say('a', '3');
-  h.guild.members.me.permissions.add(PermissionFlagsBits.ViewAuditLog);
-  let fetched = false;
-  h.guild.fetchAuditLogs = async () => {
-    fetched = true;
-    return { entries: new Collection() };
-  };
-  await onMessageDeleteBulk(h.app, new Collection([[third.message.id, third.message]]), { guildId: 'g', id: 'count' });
-  assert.equal(h.sent.length, 2);
-  assert.equal(fetched, false);
+  await onMessageDelete(h.app, first.message);
+  assert.equal(h.sent.length, 0);
   assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), false);
+
+  await onMessageDelete(h.app, { id: message.id, guildId: 'g', channelId: 'count' });
+  assert.equal(h.g().current_count, 2);
+  assert.equal(h.store.isDisqualified('g', 'b', h.g().run_id), true);
+  assert.match(JSON.stringify(h.sent[0].components), /vanished.*Next number is \*\*3\*\*.*<@b> is benched/);
+  assert.match(JSON.stringify(h.sent[1].components), /Count deleted.*They are benched/);
+  assert.deepEqual((await h.say('b', '3')).reactions, ['deleted']);
+
+  const third = await h.say('a', '3');
+  const chatter = await h.say('c', 'nice going');
+  const purged = new Collection([third.message, chatter.message].map((message) => [message.id, message]));
+  await onMessageDeleteBulk(h.app, purged, { guildId: 'g', id: 'count' });
+  assert.equal(h.g().current_count, 3);
+  assert.equal(h.g().last_message_id, null);
+  assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), false);
+  const correction = JSON.stringify(h.sent[2].components);
+  const log = JSON.stringify(h.sent[3].components);
+  assert.match(correction, /vanished.*Next number is \*\*4\*\*/);
+  assert.match(log, /Count deleted/);
+  assert.doesNotMatch(correction + log, /benched/);
+  assert.deepEqual((await h.say('c', '4')).reactions, [OK]);
+  assert.deepEqual((await h.say('a', '5')).reactions, [OK]);
+
+  await h.interact('sum:danger:reset:yes');
+  assert.deepEqual((await h.say('b', '1')).reactions, [OK]);
 });
 
-test('cosmetic edits are fine, number changes are tampering', async () => {
+test('content edits bench the latest counter even when the number stays the same', async () => {
   const h = harness();
   const { message } = await h.say('a', '1');
-  await onMessageUpdate(h.app, null, { ...message, content: '1 woo' });
+  await onMessageUpdate(h.app, message, { ...message, pinned: true });
+  await onMessageUpdate(h.app, { content: null }, { ...message, pinned: true, editedTimestamp: null });
   assert.equal(h.sent.length, 0);
-  await onMessageUpdate(h.app, null, { ...message, content: '5' });
-  assert.ok(JSON.stringify(h.sent.at(-1).components).includes('edited'));
+  await onMessageUpdate(h.app, message, { ...message, content: '1 woo' });
+  assert.match(JSON.stringify(h.sent.at(-1).components), /edited.*<@a> is benched/);
   assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), true);
   assert.deepEqual((await h.say('a', '2')).reactions, ['deleted']);
+
+  const second = await h.say('b', '2');
+  await onMessageUpdate(h.app, { content: null }, { ...second.message, content: '3', editedTimestamp: Date.now() });
+  assert.equal(h.store.isDisqualified('g', 'b', h.g().run_id), true);
+});
+
+test('with benching off, edits and deletes still repost the latest count', async () => {
+  const h = harness();
+  h.store.updateGuild('g', { rule_edit_delete: 0 });
+  const first = await h.say('a', '1');
+  await onMessageUpdate(h.app, first.message, { ...first.message, content: '99' });
+  assert.match(JSON.stringify(h.sent.at(-1).components), /edited/);
+  assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), false);
+
+  const second = await h.say('b', '2');
+  await onMessageDelete(h.app, second.message);
+  assert.match(JSON.stringify(h.sent.at(-1).components), /vanished/);
+  assert.equal(h.store.isDisqualified('g', 'b', h.g().run_id), false);
+  assert.deepEqual((await h.say('a', '3')).reactions, [OK]);
 });
 
 test('/sum: owner gets the setup wizard when unconfigured, members get overview', async () => {
@@ -275,6 +307,12 @@ test('panel navigation, leaderboard and player lookup', async () => {
   const player = await h.interact('sum:player:pick', { users: new Collection([['b', { id: 'b', bot: false }]]) });
   const json = JSON.stringify(player.components);
   assert.ok(json.includes('Player stats') && json.includes('<@b>'));
+  h.store.updateGuild('g', { math_enabled: 0 });
+  const help = await h.interact('sum:nav:help');
+  const helpText = JSON.stringify(help.components);
+  assert.match(helpText, /Math mode is off.*2,00/);
+  assert.match(helpText, /number emoji/);
+  assert.doesNotMatch(helpText, /1,5\+0,5/);
 });
 
 test('danger zone: reset and wipe', async () => {
@@ -393,17 +431,19 @@ test('slow Discord effects leave counts and the reset acknowledgement responsive
   await Promise.all([first, second, reset]);
 });
 
-test('events queued while a count is pending still see the accepted message', async () => {
+test('a queued deletion benches the author before processing another count', async () => {
   const h = harness();
   const stateGate = Promise.withResolvers();
   h.app.queue.run('g', () => stateGate.promise);
   let message;
   const count = h.say('a', '1', { beforeDispatch: (value) => { message = value; } });
   const deletion = onMessageDelete(h.app, message);
+  const next = h.say('a', '2');
   stateGate.resolve();
-  await Promise.all([count, deletion]);
+  const [, , attempt] = await Promise.all([count, deletion, next]);
   assert.equal(h.g().current_count, 1);
   assert.equal(h.g().last_message_id, null);
+  assert.deepEqual(attempt.reactions, ['deleted']);
   assert.match(JSON.stringify(h.sent.at(-1).components), /vanished/);
 });
 
@@ -429,49 +469,6 @@ test('save and ruin reactions, cards and logs survive a saturated effects queue'
   assert.match(notices, /Run ruined/);
 });
 
-test('a likely self-delete benches its author after the count is reposted', async () => {
-  const h = harness();
-  h.guild.members.me.permissions.add(PermissionFlagsBits.ViewAuditLog);
-  const { message } = await h.say('a', '1');
-  const started = Promise.withResolvers();
-  const lookup = Promise.withResolvers();
-  h.guild.fetchAuditLogs = async () => {
-    started.resolve();
-    return lookup.promise;
-  };
-  const deletion = onMessageDelete(h.app, message);
-  await started.promise;
-  assert.match(JSON.stringify(h.sent[0].components), /vanished/);
-  await h.say('b', '2');
-  assert.equal(h.g().current_count, 2);
-  lookup.resolve({ entries: new Collection() });
-  await deletion;
-  assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), true);
-  assert.match(JSON.stringify(h.sent.at(-1).components), /is benched/);
-  assert.deepEqual((await h.say('a', '3')).reactions, ['deleted']);
-});
-
-test('pending delete checks cannot bench someone after a reset or wipe', async () => {
-  for (const action of ['reset', 'wipe']) {
-    const h = harness();
-    h.guild.members.me.permissions.add(PermissionFlagsBits.ViewAuditLog);
-    const { message } = await h.say('a', '1');
-    const started = Promise.withResolvers();
-    const lookup = Promise.withResolvers();
-    h.guild.fetchAuditLogs = async () => {
-      started.resolve();
-      return lookup.promise;
-    };
-    const deletion = onMessageDelete(h.app, message);
-    await started.promise;
-    await h.interact(`sum:danger:${action}:yes`);
-    lookup.resolve({ entries: new Collection() });
-    await deletion;
-    assert.equal(h.store.isDisqualified('g', 'a', h.g().run_id), false);
-    assert.doesNotMatch(JSON.stringify(h.sent.map((payload) => payload.components)), /is benched/);
-  }
-});
-
 test('replayed successful and wrong attempts have no second effect', async () => {
   const h = harness();
   const first = await h.say('a', '1');
@@ -484,7 +481,7 @@ test('replayed successful and wrong attempts have no second effect', async () =>
   assert.equal(h.store.getStats('g', 'b').mistakes, 1);
 });
 
-test('invalid count text never reaches announcement or audit cards', async () => {
+test('invalid count text never reaches announcement or log cards', async () => {
   const h = harness();
   h.store.updateGuild('g', { log_channel_id: 'log' });
   await h.say('a', '1');
@@ -496,6 +493,18 @@ test('invalid count text never reaches announcement or audit cards', async () =>
     const rendered = JSON.stringify(payload.components);
     assert.match(rendered, /entered an invalid count/);
     assert.doesNotMatch(rendered, /example\.invalid/);
+  }
+});
+
+test('fractional results explain the whole-number rule in announcements and logs', async () => {
+  const h = harness();
+  h.store.updateGuild('g', { log_channel_id: 'log' });
+  await h.say('a', '1');
+  assert.deepEqual((await h.say('b', '1/3')).reactions, ['🛟']);
+  assert.deepEqual((await h.say('b', '1,5')).reactions, [NO]);
+  assert.equal(h.sent.length, 4);
+  for (const payload of h.sent) {
+    assert.match(JSON.stringify(payload.components), /got a fractional result\. Counts must be whole numbers/);
   }
 });
 

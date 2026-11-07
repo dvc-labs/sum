@@ -42,6 +42,7 @@ export function evaluate(guild, { userId, parsed, disqualified = false }) {
 
   const reason = isDouble ? 'double' : 'wrong';
   const base = { reason, expected, got: parsed.value };
+  if (parsed.fractionalResult) base.fractionalResult = true;
 
   // Wrong number while the wrong-number rule is off → just reject it.
   if (reason === 'wrong' && !guild.rule_wrong_number) return { type: 'rejected', ...base };

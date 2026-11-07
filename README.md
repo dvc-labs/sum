@@ -3,7 +3,7 @@
 **A classic counting game for Discord.** Your server counts up together, one number per message. Math is allowed, mistakes end the run, and every record gets celebrated.
 
 ```
-1 → 2 → 1+2 → 2x2 → 10/2 → 6 → … 💥
+1️⃣ → 1,5+0,5 → 1.05+1.95 → 2x2 → 10/2 → 6 → … 💥
 ```
 
 **[➕ Add Sum to your server](https://discord.com/oauth2/authorize?client_id=1568278807444463708&permissions=268512320&integration_type=0&scope=bot+applications.commands)** · **[💬 Support: dvc.labs Discord](https://discord.gg/dRxSt8Bt9t)**
@@ -12,13 +12,13 @@
 
 ## Features
 
-- 🔢 **Classic counting.** Starts at 0, the next person types 1, then 2, then 3. Math counts as well: `1+1`, `3x2`, `8/2`, `(4-1)*3`.
+- 🔢 **Classic counting.** Start at 1 and take turns. Number emoji like 1️⃣ and 🔟 work too. With Math mode, `1,5+0,5` and `1.05+0.95` both count as 2.
 - 💥 **Real stakes.** A wrong number or counting twice in a row ends the run. Each rule can be switched on or off.
 - 🛟 **Saves.** Each server starts with 1 save and earns another every 200 counts (max 3). A save absorbs one mistake.
 - 🏆 **High score per server.** Every run chases the server's best, and passing it gets a celebration.
 - 📊 **Leaderboards.** Most counts, accuracy, best streak, and a Hall of Shame for whoever ruins runs.
 - 👤 **Player lookup.** Check your own stats or anyone else's.
-- 🕵️ **Anti-cheat.** Deleted or edited counts get reposted. Edits that change your latest number can bench you, and servers can opt in to audit-assisted benching for self-deletes.
+- 🕵️ **Anti-cheat.** A text edit or single deletion of the latest count benches its author by default. Bulk deletes only repost the count.
 - 🎭 **Ruined role (optional).** Whoever ends a run gets a temporary role.
 - 🧹 **Strict channel (optional).** Messages that aren't counts are deleted.
 - 📝 **Log channel.** Moderators can see ruined runs, saves, records, tampering and setting changes.

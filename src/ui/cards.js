@@ -10,7 +10,8 @@ export function kickoffCard(guild) {
     title: `${e('sum')} Sum is live in this channel!`,
     body: [
       `Count up together, one number per message. Next up is **${fmt((guild?.current_count ?? 0) + 1)}**.`,
-      (guild?.math_enabled ?? true) ? 'Math works too: `1+1`, `2x2`, `10/2`.' : 'Use plain numbers to count.',
+      'Digits and number emoji both work, like 1️⃣ or 🔟.',
+      (guild?.math_enabled ?? true) ? 'Math works too. `1+1` and `1,5+0,5` both count as **2**.' : null,
       (guild?.rule_double_count ?? true) ? 'Don’t count twice in a row.' : null,
       'Run `/sum` for stats, leaderboards and the rules.',
     ].filter(Boolean).join('\n'),
@@ -20,6 +21,7 @@ export function kickoffCard(guild) {
 
 export function mistakeReason(outcome) {
   if (outcome.reason === 'double') return 'counted twice in a row';
+  if (outcome.fractionalResult) return 'got a fractional result. Counts must be whole numbers';
   const attempt = outcome.got == null ? 'entered an invalid count' : `typed **${fmt(outcome.got)}**`;
   return `${attempt} but the next number was **${fmt(outcome.expected)}**`;
 }

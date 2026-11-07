@@ -3,13 +3,13 @@ import { GAME } from '../config.js';
 /**
  * Safe count parser. Never uses eval.
  *
- * A message is a count attempt when it starts with a digit or "(".
+ * A message is a count attempt when it starts with a digit, a number emoji or "(".
  * The longest valid expression at the start of the message is evaluated,
  * so "42 let's go" → 42 and "2x3 easy" → 6.
  *
- * Supported: integers, + - * x × / ÷ : and parentheses. Arithmetic is exact
- * (BigInt fractions), so 7/2*2 → 7 and 1/3*3 → 1. A non-integer result is a
- * wrong count, not chatter.
+ * Supported: decimals with a dot or comma and up to two fractional digits,
+ * + - * x × / ÷ : and parentheses. Arithmetic uses exact BigInt fractions.
+ * A non-integer result is a wrong count.
  */
 
 const MUL = new Set(['*', 'x', 'X', '×', '·']);
@@ -54,12 +54,14 @@ class Parser {
     return this.src[this.pos];
   }
   number() {
-    const start = this.pos;
-    while (this.pos < this.src.length && this.src[this.pos] >= '0' && this.src[this.pos] <= '9') this.pos++;
-    const digits = this.src.slice(start, this.pos);
-    if (!digits) return null;
-    if (digits.length > MAX_DIGITS) throw new RangeError('number too large');
-    return new Frac(BigInt(digits));
+    const match = /^([0-9]+)(?:[.,]([0-9]+))?/.exec(this.src.slice(this.pos));
+    if (!match) return null;
+    const [literal, whole, fraction = ''] = match;
+    if (whole.length > MAX_DIGITS) throw new RangeError('number too large');
+    if (fraction.length > 2) throw new RangeError('too many decimal places');
+    this.pos += literal.length;
+    if (this.peek() === '.' || this.peek() === ',') throw new RangeError('invalid decimal');
+    return new Frac(BigInt(whole + fraction), 10n ** BigInt(fraction.length));
   }
   factor() {
     this.skipWs();
@@ -139,15 +141,18 @@ class Parser {
 /**
  * @param {string} content raw message content
  * @param {{ allowMath?: boolean }} options
- * @returns {{ attempt: false } | { attempt: true, value: number | null, expression: boolean, text: string }}
+ * @returns {{ attempt: false } | { attempt: true, value: number | null,
+ *   expression: boolean, text: string, fractionalResult?: true }}
  */
 export function parseCount(content, { allowMath = true } = {}) {
   const text = (content ?? '').trim();
   const first = text[0];
-  const startsLikeCount = (first >= '0' && first <= '9') || (allowMath && first === '(');
+  const startsLikeCount = (first >= '0' && first <= '9') || text.startsWith('🔟') || (allowMath && first === '(');
   if (!startsLikeCount) return { attempt: false };
 
-  const src = text.slice(0, GAME.maxExpressionLength);
+  // Normalize before capping the expression so a keycap is never split mid-digit.
+  const normalized = text.replace(/([0-9])\uFE0F?\u20E3/g, '$1').replaceAll('🔟', '10');
+  const src = normalized.slice(0, GAME.maxExpressionLength);
   const parser = new Parser(src, allowMath);
   let result;
   try {
@@ -160,15 +165,15 @@ export function parseCount(content, { allowMath = true } = {}) {
     return { attempt: first !== '(' ? true : false, value: null, expression: false, text: src };
   }
 
-  // "1.5", "1,000" or "12345678901234567890" style tails are not clean counts.
-  const next = src[parser.pos];
+  // Reject malformed numeric tails, including a number split by the expression limit.
+  const next = normalized[parser.pos];
   if (next !== undefined && /[0-9.,]/.test(next)) {
     return { attempt: true, value: null, expression: parser.ops > 0, text: src };
   }
 
   const expression = parser.ops > 0;
   const consumed = src.slice(0, parser.pos).trim();
-  if (result.d !== 1n) return { attempt: true, value: null, expression, text: consumed };
+  if (result.d !== 1n) return { attempt: true, value: null, expression, text: consumed, fractionalResult: true };
   const value = Number(result.n);
   if (!Number.isSafeInteger(value)) return { attempt: true, value: null, expression, text: consumed };
   return { attempt: true, value, expression, text: consumed };
