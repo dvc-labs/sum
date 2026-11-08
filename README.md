@@ -28,8 +28,9 @@
 
 1. **[Add Sum](https://discord.com/oauth2/authorize?client_id=1568278807444463708&permissions=268512320&integration_type=0&scope=bot+applications.commands)** to your server.
 2. Create a channel for counting. `#sum` works well.
-3. Run **`/sum`** and pick that channel in **⚙️ Settings**.
-4. Someone types **1**.
+3. Run **`/sum`** as a server admin and pick that channel.
+4. Select **Review rules**, adjust the rules for your server, then select **Open overview**.
+5. Someone types **1**.
 
 ## Documentation
 

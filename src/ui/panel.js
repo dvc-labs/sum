@@ -81,7 +81,7 @@ function minutesLabel(m) {
 function navRow(active, isAdmin) {
   const nav = [
     ['overview', 'Overview', btn('sum')],
-    ['leaderboard', 'Leaderboard', '🏆'],
+    ['leaderboard', 'Leaderboard', btn('trophy')],
     ['player', 'Players', '👤'],
     ['help', 'How to play', '❓'],
   ];
@@ -131,7 +131,7 @@ export function overviewView(ctx) {
   c.addSeparatorComponents(separator());
 
   const stats = [
-    `🏆 **High score:** ${fmt(guild.high_score)}${guild.high_score_at ? ` · ${ts(guild.high_score_at)}` : ''}`,
+    `${e('trophy')} **High score:** ${fmt(guild.high_score)}${guild.high_score_at ? ` · ${ts(guild.high_score_at)}` : ''}`,
     guild.saves_enabled
       ? `🛟 **Saves:** ${guild.saves}/${GAME.maxSaves}${
           guild.saves < GAME.maxSaves ? ` · next one at ${fmt(nextSaveAt(guild))}` : ' · full'
@@ -345,6 +345,10 @@ function settingsTabs(active) {
 
 export function settingsView(ctx, tab = 'channels', extra = {}) {
   switch (tab) {
+    case 'setup-channels':
+      return settingsChannels(ctx, true);
+    case 'setup-rules':
+      return ctx.guild.count_channel_id ? settingsRules(ctx, true) : settingsChannels(ctx);
     case 'rules':
       return settingsRules(ctx);
     case 'role':
@@ -356,16 +360,15 @@ export function settingsView(ctx, tab = 'channels', extra = {}) {
   }
 }
 
-function settingsChannels(ctx) {
+function settingsChannels(ctx, setup = !ctx.guild.count_channel_id) {
   const g = ctx.guild;
   const c = container();
-  const setup = !g.count_channel_id;
   const intro = setup
     ? [
         `## ${e('sum')} Let’s set up Sum`,
-        '**1.** Create a channel for counting — we suggest **`#sum`** (any name works).',
-        '**2.** Pick it below. Sum will post a kick-off message there.',
-        '**3.** Optional: pick a log channel (mods only) and extra admin roles.',
+        '### Step 1 of 2 · Choose channels',
+        'Pick a text channel for counting. A fresh `#sum` works well. Sum posts a kick-off message when you select it.',
+        'Add a log channel and extra admin roles if you need them, then select **Review rules**.',
       ]
     : [
         '## ⚙️ Settings · Channels & admins',
@@ -379,8 +382,9 @@ function settingsChannels(ctx) {
   if (ctx.issues?.length) c.addTextDisplayComponents(text(`⚠️ ${ctx.issues.join('\n⚠️ ')}`));
   c.addSeparatorComponents(separator());
 
+  const setupSuffix = setup ? ':setup-channels' : '';
   const countSelect = new ChannelSelectMenuBuilder()
-    .setCustomId('sum:set:count')
+    .setCustomId(`sum:set:count${setupSuffix}`)
     .setPlaceholder('Counting channel')
     .setChannelTypes(ChannelType.GuildText)
     .setMinValues(1)
@@ -388,7 +392,7 @@ function settingsChannels(ctx) {
   if (g.count_channel_id) countSelect.setDefaultChannels(g.count_channel_id);
 
   const logSelect = new ChannelSelectMenuBuilder()
-    .setCustomId('sum:set:log')
+    .setCustomId(`sum:set:log${setupSuffix}`)
     .setPlaceholder('Log channel (optional — clear to disable)')
     .setChannelTypes(ChannelType.GuildText)
     .setMinValues(0)
@@ -396,7 +400,7 @@ function settingsChannels(ctx) {
   if (g.log_channel_id) logSelect.setDefaultChannels(g.log_channel_id);
 
   const roleSelect = new RoleSelectMenuBuilder()
-    .setCustomId('sum:set:admins')
+    .setCustomId(`sum:set:admins${setupSuffix}`)
     .setPlaceholder('Extra Sum admin roles (optional)')
     .setMinValues(0)
     .setMaxValues(10);
@@ -406,24 +410,44 @@ function settingsChannels(ctx) {
   c.addTextDisplayComponents(
     text('-# The server owner and anyone with Manage Server are always Sum admins.'),
   );
+  if (setup) {
+    c.addActionRowComponents(row(button('sum:settings:setup-rules', 'Review rules', ButtonStyle.Primary, {
+      emoji: '📜',
+      disabled: !g.count_channel_id,
+    })));
+  }
   return [c, settingsTabs('channels'), navRow('settings', true)];
 }
 
-function settingsRules(ctx) {
+function settingsRules(ctx, setup = false) {
   const g = ctx.guild;
   const c = container();
-  c.addTextDisplayComponents(text('## 📜 Settings · Rules\nTap a button to flip a rule. Changes apply instantly.'));
+  const tab = setup ? 'setup-rules' : 'rules';
+  c.addTextDisplayComponents(text(setup
+    ? [
+        '## 📜 Step 2 of 2 · Review the rules',
+        'Read how each rule works and adjust them for your server. Changes apply as you go.',
+        'You can configure the optional role for players who ruin a run in **Settings → Ruined role** from the overview.',
+      ].join('\n')
+    : '## 📜 Settings · Rules\nTap a button to flip a rule. Changes apply instantly.'));
   c.addSeparatorComponents(separator());
   for (const rule of RULES) {
     const on = Boolean(g[rule.key]);
     c.addSectionComponents(
       sectionWithButton(
         `**${rule.title}**\n-# ${on ? rule.on : rule.off}`,
-        button(`sum:toggle:${rule.key}:rules`, on ? 'On' : 'Off', on ? ButtonStyle.Success : ButtonStyle.Secondary, {
+        button(`sum:toggle:${rule.key}:${tab}`, on ? 'On' : 'Off', on ? ButtonStyle.Success : ButtonStyle.Secondary, {
           emoji: btn(on ? 'checkmark' : 'crossmark'),
         }),
       ),
     );
+  }
+  if (setup) {
+    c.addActionRowComponents(row(
+      button('sum:settings:setup-channels', 'Back to channels', ButtonStyle.Secondary),
+      button('sum:nav:overview', 'Open overview', ButtonStyle.Success, { emoji: btn('checkmark') }),
+    ));
+    return [c];
   }
   return [c, settingsTabs('rules'), navRow('settings', true)];
 }

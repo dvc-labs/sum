@@ -6,13 +6,12 @@
  * Exit code 0 = all good, 1 = at least one failure.
  */
 import Database from 'better-sqlite3';
-import { existsSync, statSync, accessSync, constants, readdirSync, statfsSync } from 'node:fs';
+import { existsSync, statSync, accessSync, constants, statfsSync } from 'node:fs';
 import path from 'node:path';
 import { EXPECTED_TABLES, SCHEMA_VERSION } from '../src/db/migrations.js';
 
 const dataDir = path.resolve(process.env.DATA_DIR?.trim() || './data');
 const dbPath = path.join(dataDir, 'sum.db');
-const backupDir = path.join(dataDir, 'backups');
 
 let failures = 0;
 let warnings = 0;
@@ -133,28 +132,6 @@ else {
     : ok(`leader ${lock.owner.slice(0, 8)} alive (heartbeat ${age.toFixed(1)} s ago)`);
 }
 db.close();
-
-section('6. Backups');
-if (!existsSync(backupDir)) {
-  warn('no backups directory yet (first backup runs at BACKUP_HOUR_UTC)');
-} else {
-  const files = readdirSync(backupDir).filter((f) => /^sum-.*\.db$/.test(f)).sort();
-  if (files.length === 0) warn('no backups yet');
-  else {
-    const latest = path.join(backupDir, files.at(-1));
-    const ageH = (Date.now() - statSync(latest).mtimeMs) / 3_600_000;
-    ageH > 26 ? warn(`latest backup is ${ageH.toFixed(1)} h old`) : ok(`latest backup ${files.at(-1)} (${ageH.toFixed(1)} h old)`);
-    ok(`${files.length} local snapshot(s) kept`);
-    try {
-      const b = new Database(latest, { readonly: true, fileMustExist: true });
-      const res = b.pragma('integrity_check', { simple: true });
-      b.close();
-      res === 'ok' ? ok('latest backup passes integrity_check') : fail(`latest backup integrity: ${res}`);
-    } catch (err) {
-      fail(`latest backup cannot be opened: ${err.message}`);
-    }
-  }
-}
 
 finish();
 

@@ -10,11 +10,13 @@ import { Store } from '../src/db/store.js';
 
 beforeEach(() => resetEmojiState());
 
-test('the four custom emoji have the expected IDs', () => {
+test('the custom emoji have the expected IDs', () => {
   assert.equal(EMOJI.sum.id, '1568437256291745853');
   assert.equal(EMOJI.dvc.id, '1568437714716463184');
   assert.equal(EMOJI.checkmark.id, '1568438566550511626');
   assert.equal(EMOJI.crossmark.id, '1568438577644183603');
+  assert.equal(EMOJI.highscore.id, '1568783387685028001');
+  assert.equal(EMOJI.trophy.id, '1568787179357081680');
 });
 
 test('text, button and reaction forms', () => {
@@ -56,13 +58,18 @@ test('startup detection: app emoji ok, missing ones fall back, lookup failure st
     emojis: { cache: new Collection(guildIds.map((id) => [id, {}])) },
   });
   let r = await detectEmoji(mk(Object.values(EMOJI).map((d) => d.id)));
-  assert.deepEqual(Object.values(r), ['app', 'app', 'app', 'app']);
+  assert.deepEqual(Object.values(r), ['app', 'app', 'app', 'app', 'app', 'app']);
 
   r = await detectEmoji(mk([EMOJI.sum.id], [EMOJI.dvc.id]));
-  assert.deepEqual(r, { sum: 'app', dvc: 'guild', checkmark: 'missing', crossmark: 'missing' });
+  assert.deepEqual(r, {
+    sum: 'app', dvc: 'guild', checkmark: 'missing', crossmark: 'missing', highscore: 'missing', trophy: 'missing',
+  });
   assert.equal(isCustom('dvc'), true); // server emoji still used (works where external emoji are allowed)
   assert.equal(isCustom('checkmark'), false);
   assert.equal(isCustom('crossmark'), false);
+  assert.equal(reactionId('highscore'), '☑️');
+  assert.equal(e('trophy'), '🏆');
+  assert.equal(btn('trophy'), '🏆');
 
   resetEmojiState();
   const broken = { application: { emojis: { fetch: async () => Promise.reject(new Error('network')) } }, emojis: { cache: new Collection() } };
@@ -74,6 +81,7 @@ test('startup detection: app emoji ok, missing ones fall back, lookup failure st
 test('emoji appear in the cards, buttons and toggles', () => {
   const store = new Store(openDatabase(':memory:'));
   store.ensureGuild('g');
+  store.updateGuild('g', { count_channel_id: '1', high_score: 12 });
   const ctx = { store, guild: store.getGuild('g'), guildName: 'T', userId: 'u', isAdmin: true, issues: [] };
   const json = (c) => JSON.stringify(c.map((x) => x.toJSON?.() ?? x));
 
@@ -85,7 +93,10 @@ test('emoji appear in the cards, buttons and toggles', () => {
 
   assert.ok(JSON.stringify(welcomeDm('S', true).toJSON()).includes('"label":"dvc.labs support"'));
   assert.ok(JSON.stringify(kickoffCard().toJSON()).includes('<:sum:1568437256291745853>'));
-  assert.ok(json(overviewView(ctx)).includes('"emoji":{"id":"1568437256291745853","name":"sum"}')); // nav Overview
+  const overview = json(overviewView(ctx));
+  assert.ok(overview.includes('"emoji":{"id":"1568437256291745853","name":"sum"}')); // nav Overview
+  assert.ok(overview.includes('"emoji":{"id":"1568787179357081680","name":"trophy"}'));
+  assert.ok(overview.includes('<:trophy:1568787179357081680> **High score:** 12'));
 
   const rules = json(settingsView(ctx, 'rules'));
   assert.ok(rules.includes('"emoji":{"id":"1568438566550511626","name":"checkmark"}')); // an "On" toggle

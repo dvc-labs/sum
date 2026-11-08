@@ -14,9 +14,9 @@ Only Sum admins see the **⚙️ Settings** button in `/sum`.
 
 1. Create a text channel for counting. **`#sum`** works well, but any name does.
 2. Run **`/sum`**. If no counting channel is set yet, admins go straight to the setup screen.
-3. Pick the counting channel. Sum posts a short kick-off message there.
-4. *(Optional)* Pick a **log channel**. A private mod channel is ideal.
-5. *(Optional)* Add **Sum admin roles**, for example your moderator role.
+3. Pick the counting channel. Sum posts a short kick-off message there. You can also pick a **log channel** and add **Sum admin roles**.
+4. Select **Review rules** to see how the game works and adjust the rules for your server. Changes apply as you make them.
+5. Select **Open overview**. To configure the optional ruined role, open **Settings → Ruined role**.
 
 When Sum joins a server, it DMs the server owner a thank-you note with these steps. If Sum already has **View Audit Log**, it can send the note to the installer.
 
@@ -91,7 +91,25 @@ Kick Sum like any other bot. Its live game data is kept for **30 days** in case 
 - Mount a persistent volume at `/data` (owned by UID 1000). Back up the database and stop the old container before a schema upgrade, including the upgrade to schema v3 for catch-up. Keep the pre-upgrade backup if you need to roll back to the older binary. Future overlapping containers must share the same database file.
 - Keep the health port internal. `/healthz` checks the gateway and database. `/readyz` also checks that the instance owns the writer lease.
 - In the Discord Developer Portal, set Guild Install scopes to `bot` and `applications.commands` and use the six default permissions above (`268512320`). Enable Message Content for counting. Server Members and Presence can stay off.
-- Sum prunes local snapshots by age and by `BACKUP_KEEP`. If you enable R2, give its token object read/write access only to the backup bucket. Set an [R2 lifecycle rule](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) to expire objects under `R2_PREFIX` (default `sum/`) after seven days, including when Sum is offline.
+
+### Coolify volume backups
+
+Verify a backup and test a restore before upgrading from a build with Sum’s built-in backups.
+
+1. In the Sum application, open **Backups → Storage backups**. Schedule backups of the `/data` mount and select Cloudflare R2 as the S3 destination.
+2. Under **General → Backup schedule → Archive behavior**, select **Stop containers during archive**. Sum uses SQLite in WAL mode. For a file-by-file backup on any host, stop all Sum instances sharing the volume before copying it.
+3. Under **Retention**, set **Days to keep** for every local and S3 location where you retain archives. **Backups to keep** limits the number of copies. A day limit of `0` leaves their age uncapped. For expiry independent of Coolify, use an R2 lifecycle rule scoped to the backup prefix.
+4. Select **Back up now** and confirm the R2 upload succeeded in **Executions**. Download the uploaded archive from R2 and extract it to a separate directory for a manual restore test. Keep `sum.db` and any accompanying WAL file together. From a Sum checkout with dependencies installed, run the smoke check against the directory containing the restored database.
+
+   ```sh
+   DATA_DIR=/path/to/restored-data npm run smoke
+   ```
+
+   Check that SQLite integrity passes and that the restored data is the game state you expected. A missing leader lock is expected when checking a stopped copy.
+
+After a successful restore test, deploy the upgrade. Remove `BACKUP_HOUR_UTC`, `BACKUP_KEEP` and the old `R2_*` settings from Sum’s app environment. Clean up the legacy Sum snapshots in `/data/backups` and confirm expiry for the legacy objects in Sum’s former R2 prefix. Coolify archives created before that cleanup may include those snapshots and follow the archive retention policy.
+
+[Coolify storage backup documentation](https://coolify.io/docs/core/persistent-storage/storage-mounts/backups) · [SQLite WAL documentation](https://www.sqlite.org/wal.html#the_wal_file) · [R2 lifecycle documentation](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)
 
 ## Counting after downtime
 

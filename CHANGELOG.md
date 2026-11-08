@@ -2,6 +2,13 @@
 
 All notable changes to Sum are listed here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+- Move backup scheduling, storage and retention to the hosting platform. Remove Sum’s local SQLite snapshots and R2 uploads.
+- Remove the app-level `BACKUP_HOUR_UTC`, `BACKUP_KEEP` and `R2_*` settings.
+- Guide admins from channel selection through reviewing the rules in first-time setup.
+- Use Sum’s custom high-score tick for counts past the previous record and the custom trophy in the panel, announcements and logs.
+
 ## [0.1.4] — 2026-11-07
 
 - Remove message-deletion audit checks. On servers with **Bench after edits or deletes** on (the default), a text edit or single deletion of the latest accepted count benches its author. Bulk deletes only repost the count.
