@@ -2,6 +2,10 @@
 
 All notable changes to Sum are listed here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+- Move backup scheduling, storage and retention to the hosting platform. Remove Sum’s local SQLite snapshots and R2 uploads.
+
 ## [0.1.4] — 2026-11-07
 
 - Remove message-deletion audit checks. On servers with **Bench after edits or deletes** on (the default), a text edit or single deletion of the latest accepted count benches its author. Bulk deletes only repost the count.

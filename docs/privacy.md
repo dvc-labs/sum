@@ -1,6 +1,6 @@
 # 🔒 Privacy policy
 
-*Last updated: 7 November 2026*
+*Last updated: 8 November 2026*
 
 Sum is a counting game for Discord made by dvc. ([davevancauwenberghe.be](https://www.davevancauwenberghe.be)). This page explains what Sum stores and why.
 
@@ -29,13 +29,13 @@ Sum’s database does **not** store original message text, usernames, avatars, e
 
 ## Where it's stored
 
-Game data lives in a database on a server operated by dvc. Local backup snapshots are pruned after seven days by scheduled maintenance. If off-site backups are enabled, Sum uploads snapshots to Cloudflare R2 and prunes them with the same age limit. A bucket lifecycle rule is required to expire copies while Sum is offline.
+Game data lives in a SQLite database on a server operated by dvc. Coolify backs up the data volume to Cloudflare R2, and dvc manages backup retention.
 
 ## How long
 
 - As long as Sum is in your server.
 - **30 days** after Sum is removed, its live server data becomes eligible for scheduled deletion. Re-inviting Sum before that deadline restores the game.
-- A server admin can clear live game data with `/sum` → ⚙️ Settings → 🧨 **Wipe server data**. Role cleanup records can remain while Sum retries removal. Older backups expire on their own schedule. Messages already posted in Discord are managed in Discord.
+- A server admin can clear live game data with `/sum` → ⚙️ Settings → 🧨 **Wipe server data**. Role cleanup records can remain while Sum retries removal. Backup copies follow a separate retention policy. Messages already posted in Discord are managed in Discord.
 
 ## Sharing
 

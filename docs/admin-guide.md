@@ -91,7 +91,8 @@ Kick Sum like any other bot. Its live game data is kept for **30 days** in case 
 - Mount a persistent volume at `/data` (owned by UID 1000). Back up the database and stop the old container before a schema upgrade, including the upgrade to schema v3 for catch-up. Keep the pre-upgrade backup if you need to roll back to the older binary. Future overlapping containers must share the same database file.
 - Keep the health port internal. `/healthz` checks the gateway and database. `/readyz` also checks that the instance owns the writer lease.
 - In the Discord Developer Portal, set Guild Install scopes to `bot` and `applications.commands` and use the six default permissions above (`268512320`). Enable Message Content for counting. Server Members and Presence can stay off.
-- Sum prunes local snapshots by age and by `BACKUP_KEEP`. If you enable R2, give its token object read/write access only to the backup bucket. Set an [R2 lifecycle rule](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) to expire objects under `R2_PREFIX` (default `sum/`) after seven days, including when Sum is offline.
+- Schedule backups of `/data` and set retention in Coolify or your hosting platform. For a file-by-file backup, stop all Sum instances sharing the volume before copying it. [SQLite WAL documentation](https://www.sqlite.org/wal.html#the_wal_file)
+- When upgrading from a build with in-app backups, remove `BACKUP_HOUR_UTC`, `BACKUP_KEEP` and the old `R2_*` settings from Sum’s app environment. Manage any legacy snapshots in `/data/backups` or Sum’s old R2 prefix through your backup retention policy.
 
 ## Counting after downtime
 

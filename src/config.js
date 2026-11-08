@@ -63,7 +63,6 @@ export const GAME = Object.freeze({
   leaderboardPageSize: 10,
   accuracyMinCounts: 20,
   dataRetentionDays: 30, // after the bot is removed from a server
-  backupRetentionDays: 7,
   countReplayHours: 24,
   ownerWarnCooldownHours: 24,
   ruinedRoleDefaultMinutes: 60,
@@ -80,22 +79,10 @@ export function loadConfig() {
     applicationId: required('DISCORD_APPLICATION_ID'),
     dataDir,
     dbPath: path.join(dataDir, 'sum.db'),
-    backupDir: path.join(dataDir, 'backups'),
-    backupKeep: int('BACKUP_KEEP', 7),
-    backupHourUtc: int('BACKUP_HOUR_UTC', 2),
     registerCommands: bool('REGISTER_COMMANDS', true),
     healthPort: int('HEALTH_PORT', 3000),
     logLevel: optional('LOG_LEVEL', 'info'),
     errorWebhookUrl: optional('ERROR_WEBHOOK_URL'),
-    r2: optional('R2_BUCKET')
-      ? {
-          accountId: required('R2_ACCOUNT_ID'),
-          accessKeyId: required('R2_ACCESS_KEY_ID'),
-          secretAccessKey: required('R2_SECRET_ACCESS_KEY'),
-          bucket: required('R2_BUCKET'),
-          prefix: optional('R2_PREFIX', 'sum/'),
-        }
-      : null,
   });
   return cached;
 }

@@ -8,7 +8,6 @@ import { onMessageCreate, onMessageDelete, onMessageDeleteBulk, onMessageUpdate 
 import { onChannelDelete, onGuildCreate, onGuildDelete, onRoleDelete, reconcileGuilds } from './events/guilds.js';
 import { onInteraction } from './interactions/router.js';
 import { registerCommands } from './commands/register.js';
-import { pruneBackups, runBackup } from './services/backup.js';
 import { startHealthServer } from './services/health.js';
 import { sweepTempRoles } from './services/roles.js';
 import { initErrorReporting, reportError } from './services/errors.js';
@@ -125,22 +124,14 @@ function scheduleJob(where, intervalMs, task) {
 
 function scheduleMaintenance() {
   scheduleJob('role expiry', 60_000, () => sweepTempRoles(app));
-  let lastBackupDay = null;
-  scheduleJob('maintenance', 3_600_000, async () => {
-    const now = new Date();
+  scheduleJob('maintenance', 3_600_000, () => {
+    const now = Date.now();
     updatePresence();
     const purged = leader.write(() => {
-      store.purgeProcessedCounts(now.getTime() - GAME.countReplayHours * 3_600_000);
-      return store.purgeLeftBefore(now.getTime() - GAME.dataRetentionDays * 86_400_000);
+      store.purgeProcessedCounts(now - GAME.countReplayHours * 3_600_000);
+      return store.purgeLeftBefore(now - GAME.dataRetentionDays * 86_400_000);
     });
     if (purged) logger.info({ purged }, 'purged data of servers that removed Sum');
-    await pruneBackups(config.backupDir, config.backupKeep, now.getTime());
-
-    const day = now.toISOString().slice(0, 10);
-    if (leader.isLeader() && now.getUTCHours() === config.backupHourUtc && lastBackupDay !== day) {
-      await runBackup(db, { backupDir: config.backupDir, keep: config.backupKeep, r2: config.r2 });
-      lastBackupDay = day;
-    }
   });
 }
 
