@@ -81,7 +81,7 @@ function minutesLabel(m) {
 function navRow(active, isAdmin) {
   const nav = [
     ['overview', 'Overview', btn('sum')],
-    ['leaderboard', 'Leaderboard', btn('highscore')],
+    ['leaderboard', 'Leaderboard', btn('trophy')],
     ['player', 'Players', '👤'],
     ['help', 'How to play', '❓'],
   ];
@@ -131,7 +131,7 @@ export function overviewView(ctx) {
   c.addSeparatorComponents(separator());
 
   const stats = [
-    `${e('highscore')} **High score:** ${fmt(guild.high_score)}${guild.high_score_at ? ` · ${ts(guild.high_score_at)}` : ''}`,
+    `${e('trophy')} **High score:** ${fmt(guild.high_score)}${guild.high_score_at ? ` · ${ts(guild.high_score_at)}` : ''}`,
     guild.saves_enabled
       ? `🛟 **Saves:** ${guild.saves}/${GAME.maxSaves}${
           guild.saves < GAME.maxSaves ? ` · next one at ${fmt(nextSaveAt(guild))}` : ' · full'

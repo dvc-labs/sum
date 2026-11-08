@@ -170,11 +170,11 @@ test('a counting session end to end', async () => {
   assert.equal(h.g().current_count, 0);
   const lastCard = JSON.stringify(h.sent.at(-1).components);
   assert.ok(lastCard.includes('run over'));
-  assert.match(lastCard, /<:highscore:1568783387685028001> High score/);
+  assert.match(lastCard, /<:trophy:1568787179357081680> High score/);
   assert.equal(h.sent.at(-1).flags & MessageFlags.IsComponentsV2, MessageFlags.IsComponentsV2);
 });
 
-test('the high-score emoji marks record announcements and counts past the old record', async () => {
+test('counts past the old record get the high-score tick and trophy announcements', async () => {
   const h = harness();
   h.store.updateGuild('g', { high_score: 2, record_to_beat: 2, log_channel_id: 'log' });
   await h.say('a', '1');
@@ -182,8 +182,8 @@ test('the high-score emoji marks record announcements and counts past the old re
   assert.deepEqual((await h.say('a', '3')).reactions, ['highscore:1568783387685028001']);
   assert.deepEqual((await h.say('b', '4')).reactions, ['highscore:1568783387685028001']);
   assert.equal(h.sent.length, 2);
-  assert.match(JSON.stringify(h.sent[0].components), /<:highscore:1568783387685028001> New high score!/);
-  assert.match(JSON.stringify(h.sent[1].components), /<:highscore:1568783387685028001> New high score run/);
+  assert.match(JSON.stringify(h.sent[0].components), /<:trophy:1568787179357081680> New high score!/);
+  assert.match(JSON.stringify(h.sent[1].components), /<:trophy:1568787179357081680> New high score run/);
 });
 
 test('concurrent identical counts: only one is accepted', async () => {

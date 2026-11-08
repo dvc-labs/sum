@@ -158,7 +158,7 @@ async function announceCount(app, message, guild, updated, outcome, current) {
       await react(emoji);
       if (outcome.announceRecord) {
         await send(recordCard(outcome.number));
-        await logEvent(client, updated, `${e('highscore')} New high score run`, [
+        await logEvent(client, updated, `${e('trophy')} New high score run`, [
           `Passed the previous record of **${fmt(guild.high_score)}**.`,
         ], ACCENT.celebrate);
       }

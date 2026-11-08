@@ -33,7 +33,7 @@ export function ruinedCard(outcome, userId, guild) {
     body: [
       `${user(userId)} ${mistakeReason(outcome)}.`,
       `The count is back to **0**. Start again with **1**.`,
-      `${e('highscore')} High score: **${fmt(guild.high_score)}**`,
+      `${e('trophy')} High score: **${fmt(guild.high_score)}**`,
     ].join('\n'),
   });
 }
@@ -59,7 +59,7 @@ export function rejectedNoticeCard(outcome, userId) {
 export function recordCard(number) {
   return card({
     accent: ACCENT.celebrate,
-    title: `${e('highscore')} New high score!`,
+    title: `${e('trophy')} New high score!`,
     body: `You just passed the server record. Every number from here on is history — currently **${fmt(number)}**.`,
   });
 }
