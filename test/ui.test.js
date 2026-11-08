@@ -91,6 +91,8 @@ test('every panel view fits Components v2 limits', () => {
     validate('player:bot', playerView(ctx, 'bot', true));
     validate('help', helpView(ctx));
     for (const tab of ['channels', 'rules', 'role', 'danger']) validate(`settings:${tab}`, settingsView(ctx, tab));
+    validate('setup:channels', settingsView(ctx, 'setup-channels'));
+    validate('setup:rules', settingsView(ctx, 'setup-rules'));
     validate('danger:reset', settingsView(ctx, 'danger', { confirm: 'reset' }));
     validate('danger:wipe', settingsView(ctx, 'danger', { confirm: 'wipe' }));
     validate('noAccess', noAccessView(ctx));
@@ -121,5 +123,6 @@ test('announcement cards and DMs are valid', () => {
   assert.equal(all.about.toJSON().accent_color, 0xff4500);
   assert.ok(JSON.stringify(all.welcome.toJSON()).includes('With love from dvc.'));
   assert.ok(JSON.stringify(all.welcome.toJSON()).includes('https://discord.gg/dRxSt8Bt9t'));
+  assert.ok(JSON.stringify(all.welcome.toJSON()).includes('Review rules'));
   assert.ok(MessageFlags.IsComponentsV2 === 1 << 15);
 });

@@ -11,6 +11,7 @@ export const EMOJI = Object.freeze({
   dvc: Object.freeze({ name: 'dvc', id: '1568437714716463184', fallback: '🧡' }),
   checkmark: Object.freeze({ name: 'checkmark', id: '1568438566550511626', fallback: '✅' }),
   crossmark: Object.freeze({ name: 'crossmark', id: '1568438577644183603', fallback: '❌' }),
+  highscore: Object.freeze({ name: 'highscore', id: '1568783387685028001', fallback: '🏆' }),
 });
 
 /** Keys of emoji that must NOT be used as custom (missing/deleted). Optimistic by default. */

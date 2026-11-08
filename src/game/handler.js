@@ -16,7 +16,7 @@ import { logEvent, warnOwner } from '../services/notify.js';
 import { assignRuinedRole } from '../services/roles.js';
 import { isPermissionError, reportError } from '../services/errors.js';
 import { writeIfLeader } from '../services/leader.js';
-import { reactWith } from '../ui/emoji.js';
+import { e, reactWith } from '../ui/emoji.js';
 
 /**
  * Reaction identifiers. `custom` ones are keys of Sum's custom emoji (see ui/emoji.js)
@@ -25,7 +25,7 @@ import { reactWith } from '../ui/emoji.js';
 const EMOJI = {
   ok: { custom: 'checkmark' },
   wrong: { custom: 'crossmark' },
-  beyondRecord: '☑️',
+  beyondRecord: { custom: 'highscore' },
   hundred: '💯',
   thousand: '🎉',
   saved: '🛟',
@@ -158,7 +158,7 @@ async function announceCount(app, message, guild, updated, outcome, current) {
       await react(emoji);
       if (outcome.announceRecord) {
         await send(recordCard(outcome.number));
-        await logEvent(client, updated, '🏆 New high score run', [
+        await logEvent(client, updated, `${e('highscore')} New high score run`, [
           `Passed the previous record of **${fmt(guild.high_score)}**.`,
         ], ACCENT.celebrate);
       }

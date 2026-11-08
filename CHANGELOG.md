@@ -5,6 +5,8 @@ All notable changes to Sum are listed here. Versions follow [Semantic Versioning
 ## [Unreleased]
 
 - Move backup scheduling, storage and retention to the hosting platform. Remove Sum’s local SQLite snapshots and R2 uploads.
+- Guide admins from channel selection through reviewing the rules in first-time setup.
+- Use Sum’s custom high-score emoji in the panel, notices, logs and record reactions.
 
 ## [0.1.4] — 2026-11-07
 

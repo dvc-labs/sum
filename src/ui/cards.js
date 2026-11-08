@@ -11,9 +11,9 @@ export function kickoffCard(guild) {
     body: [
       `Count up together, one number per message. Next up is **${fmt((guild?.current_count ?? 0) + 1)}**.`,
       'Digits and number emoji both work, like 1️⃣ or 🔟.',
-      (guild?.math_enabled ?? true) ? 'Math works too. `1+1` and `1,5+0,5` both count as **2**.' : null,
-      (guild?.rule_double_count ?? true) ? 'Don’t count twice in a row.' : null,
-      'Run `/sum` for stats, leaderboards and the rules.',
+      (guild?.math_enabled ?? true) ? 'With Math mode on, `1+1` and `1,5+0,5` both count as **2**.' : null,
+      (guild?.rule_double_count ?? true) ? 'Take turns when **No counting twice in a row** is on.' : null,
+      'Open `/sum` → **How to play** for your server’s current rules.',
     ].filter(Boolean).join('\n'),
     footer: fineprint(),
   });
@@ -33,7 +33,7 @@ export function ruinedCard(outcome, userId, guild) {
     body: [
       `${user(userId)} ${mistakeReason(outcome)}.`,
       `The count is back to **0**. Start again with **1**.`,
-      `🏆 High score: **${fmt(guild.high_score)}**`,
+      `${e('highscore')} High score: **${fmt(guild.high_score)}**`,
     ].join('\n'),
   });
 }
@@ -59,7 +59,7 @@ export function rejectedNoticeCard(outcome, userId) {
 export function recordCard(number) {
   return card({
     accent: ACCENT.celebrate,
-    title: '🏆 New high score!',
+    title: `${e('highscore')} New high score!`,
     body: `You just passed the server record. Every number from here on is history — currently **${fmt(number)}**.`,
   });
 }
@@ -119,11 +119,11 @@ export function welcomeDm(guildName, addressedToOwner) {
   c.addTextDisplayComponents(
     text(
       [
-        '### Get counting in 30 seconds',
-        '**1.** Create a channel for the game — `#sum` is a great name.',
-        '**2.** Run `/sum` in your server and open **⚙️ Settings**.',
-        '**3.** Pick your counting channel (and optionally a log channel and admin roles).',
-        'That’s it. Someone types **1** and the chaos begins.',
+        '### Get counting',
+        '**1.** Create a text channel for the game. `#sum` works well.',
+        '**2.** Run `/sum` to open setup and pick the counting channel.',
+        '**3.** Choose **Review rules** to see how each rule works and adjust it for your server.',
+        '**4.** Select **Finish setup**. Someone types **1** and the chaos begins.',
       ].join('\n'),
     ),
   );

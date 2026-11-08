@@ -170,7 +170,20 @@ test('a counting session end to end', async () => {
   assert.equal(h.g().current_count, 0);
   const lastCard = JSON.stringify(h.sent.at(-1).components);
   assert.ok(lastCard.includes('run over'));
+  assert.match(lastCard, /<:highscore:1568783387685028001> High score/);
   assert.equal(h.sent.at(-1).flags & MessageFlags.IsComponentsV2, MessageFlags.IsComponentsV2);
+});
+
+test('the high-score emoji marks record announcements and counts past the old record', async () => {
+  const h = harness();
+  h.store.updateGuild('g', { high_score: 2, record_to_beat: 2, log_channel_id: 'log' });
+  await h.say('a', '1');
+  await h.say('b', '2');
+  assert.deepEqual((await h.say('a', '3')).reactions, ['highscore:1568783387685028001']);
+  assert.deepEqual((await h.say('b', '4')).reactions, ['highscore:1568783387685028001']);
+  assert.equal(h.sent.length, 2);
+  assert.match(JSON.stringify(h.sent[0].components), /<:highscore:1568783387685028001> New high score!/);
+  assert.match(JSON.stringify(h.sent[1].components), /<:highscore:1568783387685028001> New high score run/);
 });
 
 test('concurrent identical counts: only one is accepted', async () => {
@@ -254,15 +267,51 @@ test('with benching off, edits and deletes still repost the latest count', async
   assert.deepEqual((await h.say('a', '3')).reactions, [OK]);
 });
 
-test('/sum: owner gets the setup wizard when unconfigured, members get overview', async () => {
+test('/sum guides admins from channel selection through reviewing rules', async () => {
   const h = harness();
   h.store.updateGuild('g', { count_channel_id: null });
+  const reviewId = 'sum:settings:setup-rules';
+  const reviewButton = (payload) => {
+    const panels = payload.components.map((component) => component.toJSON());
+    return panels.flatMap((panel) => panel.components ?? [])
+      .flatMap((component) => component.components ?? [])
+      .find((button) => button.custom_id === reviewId);
+  };
   const owner = await h.command('sum', 'owner');
-  assert.ok(JSON.stringify(owner.components).includes('set up Sum'));
+  assert.match(JSON.stringify(owner.components), /Step 1 of 2/);
   assert.equal(owner.flags & MessageFlags.Ephemeral, MessageFlags.Ephemeral);
+  assert.equal(reviewButton(owner).disabled, true);
   const member = await h.command('sum', 'someone');
   assert.ok(JSON.stringify(member.components).includes('Ask a server admin'));
   assert.ok(!JSON.stringify(member.components).includes('sum:nav:settings'));
+  const denied = await h.interact(reviewId, { userId: 'someone' });
+  assert.match(JSON.stringify(denied.components), /Admins only/);
+  const tooSoon = await h.interact(reviewId);
+  assert.equal(reviewButton(tooSoon).disabled, true);
+
+  const selected = await h.interact('sum:set:count:setup-channels', { values: ['count'] });
+  assert.equal(h.g().count_channel_id, 'count');
+  assert.equal(reviewButton(selected).disabled, false);
+  assert.match(JSON.stringify(h.sent[0].components), /Sum is live in this channel/);
+  const withLog = await h.interact('sum:set:log:setup-channels', { values: ['log'] });
+  assert.equal(h.g().log_channel_id, 'log');
+  assert.equal(reviewButton(withLog).disabled, false);
+  const withAdmins = await h.interact('sum:set:admins:setup-channels', { values: ['modrole'] });
+  assert.deepEqual(h.g().admin_role_ids, ['modrole']);
+  assert.equal(reviewButton(withAdmins).disabled, false);
+
+  const rules = await h.interact(reviewId);
+  assert.match(JSON.stringify(rules.components), /Step 2 of 2.*Finish setup/);
+  const toggled = await h.interact('sum:toggle:math_enabled:setup-rules');
+  assert.equal(h.g().math_enabled, 0);
+  assert.match(JSON.stringify(toggled.components), /Step 2 of 2.*Finish setup/);
+  const back = await h.interact('sum:settings:setup-channels');
+  assert.equal(reviewButton(back).disabled, false);
+  const reviewedAgain = await h.interact(reviewId);
+  assert.match(JSON.stringify(reviewedAgain.components), /Step 2 of 2.*Start with a single number/);
+  const finished = await h.interact('sum:nav:overview');
+  assert.match(JSON.stringify(finished.components), /Next up: \*\*1\*\* in <#count>/);
+  assert.doesNotMatch(JSON.stringify(finished.components), /Step [12] of 2/);
 });
 
 test('/about shows version, brand colour and links', async () => {

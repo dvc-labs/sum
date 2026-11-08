@@ -14,9 +14,9 @@ Only Sum admins see the **⚙️ Settings** button in `/sum`.
 
 1. Create a text channel for counting. **`#sum`** works well, but any name does.
 2. Run **`/sum`**. If no counting channel is set yet, admins go straight to the setup screen.
-3. Pick the counting channel. Sum posts a short kick-off message there.
-4. *(Optional)* Pick a **log channel**. A private mod channel is ideal.
-5. *(Optional)* Add **Sum admin roles**, for example your moderator role.
+3. Pick the counting channel. Sum posts a short kick-off message there. You can also pick a **log channel** and add **Sum admin roles**.
+4. Select **Review rules** to see how the game works and adjust the rules for your server. Changes apply as you make them.
+5. Select **Finish setup** to open the game overview.
 
 When Sum joins a server, it DMs the server owner a thank-you note with these steps. If Sum already has **View Audit Log**, it can send the note to the installer.
 

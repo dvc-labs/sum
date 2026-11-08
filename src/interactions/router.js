@@ -162,9 +162,14 @@ async function mutate(app, interaction, area, action, arg) {
       if (!ctx?.isAdmin) return { view: noAccessView(ctx) };
 
       let result;
-      if (area === 'set') result = setOption(app, interaction, ctx, action);
-      else if (area === 'toggle') result = toggleOption(app, interaction, ctx, action, arg);
-      else result = dangerOption(app, interaction, ctx, action);
+      if (area === 'set') {
+        result = setOption(app, interaction, ctx, action);
+        if (arg === 'setup-channels' || !ctx.guild.count_channel_id) result.tab ??= 'setup-channels';
+      } else if (area === 'toggle') {
+        result = toggleOption(app, interaction, ctx, action, arg);
+      } else {
+        result = dangerOption(app, interaction, ctx, action);
+      }
       return { ...result, ctx: context(app, interaction) };
     });
     if (!committed) return;
