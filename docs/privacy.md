@@ -29,13 +29,13 @@ Sum’s database does **not** store original message text, usernames, avatars, e
 
 ## Where it's stored
 
-Game data lives in a SQLite database on a server operated by dvc. Coolify backs up the data volume to Cloudflare R2, and dvc manages backup retention.
+Game data lives in a SQLite database on a server operated by dvc. When off-site volume backups are enabled, Coolify stores copies in Cloudflare R2. The deployment and storage retention settings govern how long backup copies are kept.
 
 ## How long
 
 - As long as Sum is in your server.
 - **30 days** after Sum is removed, its live server data becomes eligible for scheduled deletion. Re-inviting Sum before that deadline restores the game.
-- A server admin can clear live game data with `/sum` → ⚙️ Settings → 🧨 **Wipe server data**. Role cleanup records can remain while Sum retries removal. Backup copies follow a separate retention policy. Messages already posted in Discord are managed in Discord.
+- A server admin can clear live game data with `/sum` → ⚙️ Settings → 🧨 **Wipe server data**. Role cleanup records can remain while Sum retries removal. Data already in a backup may remain until that copy expires. Messages already posted in Discord are managed in Discord.
 
 ## Sharing
 

@@ -424,7 +424,11 @@ function settingsRules(ctx, setup = false) {
   const c = container();
   const tab = setup ? 'setup-rules' : 'rules';
   c.addTextDisplayComponents(text(setup
-    ? '## 📜 Step 2 of 2 · Review the rules\nRead how each rule works and adjust them for your server. Changes apply as you go.'
+    ? [
+        '## 📜 Step 2 of 2 · Review the rules',
+        'Read how each rule works and adjust them for your server. Changes apply as you go.',
+        'You can configure the optional role for players who ruin a run in **Settings → Ruined role** from the overview.',
+      ].join('\n')
     : '## 📜 Settings · Rules\nTap a button to flip a rule. Changes apply instantly.'));
   c.addSeparatorComponents(separator());
   for (const rule of RULES) {
@@ -441,7 +445,7 @@ function settingsRules(ctx, setup = false) {
   if (setup) {
     c.addActionRowComponents(row(
       button('sum:settings:setup-channels', 'Back to channels', ButtonStyle.Secondary),
-      button('sum:nav:overview', 'Finish setup', ButtonStyle.Success, { emoji: btn('checkmark') }),
+      button('sum:nav:overview', 'Open overview', ButtonStyle.Success, { emoji: btn('checkmark') }),
     ));
     return [c];
   }

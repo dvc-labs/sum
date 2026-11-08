@@ -123,7 +123,7 @@ export function welcomeDm(guildName, addressedToOwner) {
         '**1.** Create a text channel for the game. `#sum` works well.',
         '**2.** Run `/sum` to open setup and pick the counting channel.',
         '**3.** Choose **Review rules** to see how each rule works and adjust it for your server.',
-        '**4.** Select **Finish setup**. Someone types **1** and the chaos begins.',
+        '**4.** Select **Open overview**. Someone types **1** and the chaos begins.',
       ].join('\n'),
     ),
   );

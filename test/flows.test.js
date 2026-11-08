@@ -301,10 +301,10 @@ test('/sum guides admins from channel selection through reviewing rules', async 
   assert.equal(reviewButton(withAdmins).disabled, false);
 
   const rules = await h.interact(reviewId);
-  assert.match(JSON.stringify(rules.components), /Step 2 of 2.*Finish setup/);
+  assert.match(JSON.stringify(rules.components), /Step 2 of 2.*Settings → Ruined role.*Open overview/);
   const toggled = await h.interact('sum:toggle:math_enabled:setup-rules');
   assert.equal(h.g().math_enabled, 0);
-  assert.match(JSON.stringify(toggled.components), /Step 2 of 2.*Finish setup/);
+  assert.match(JSON.stringify(toggled.components), /Step 2 of 2.*Open overview/);
   const back = await h.interact('sum:settings:setup-channels');
   assert.equal(reviewButton(back).disabled, false);
   const reviewedAgain = await h.interact(reviewId);

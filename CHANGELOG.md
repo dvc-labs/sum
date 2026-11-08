@@ -5,6 +5,7 @@ All notable changes to Sum are listed here. Versions follow [Semantic Versioning
 ## [Unreleased]
 
 - Move backup scheduling, storage and retention to the hosting platform. Remove Sum’s local SQLite snapshots and R2 uploads.
+- Remove the app-level `BACKUP_HOUR_UTC`, `BACKUP_KEEP` and `R2_*` settings.
 - Guide admins from channel selection through reviewing the rules in first-time setup.
 - Use Sum’s custom high-score tick for counts past the previous record and the custom trophy in the panel, announcements and logs.
 
